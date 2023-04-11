@@ -49,7 +49,18 @@ public class GptController {
         return resp;
     }
 
-
+    @PostMapping("/image/{prompt}")
+    @ResponseBody
+    public CommonResp<String> image(@PathVariable String prompt){
+        CommonResp<String> resp = new CommonResp<>();
+        String res = gptService.image(prompt);
+        if (res == null) {
+            resp.setSuccess(false);
+            resp.setMessage("接口超时, 请重试");
+        }
+        resp.setContent(res);
+        return resp;
+    }
 
     /**
      * 查询某个用户下的所有历史记录

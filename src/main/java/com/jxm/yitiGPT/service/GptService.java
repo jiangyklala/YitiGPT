@@ -16,6 +16,8 @@ import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.completion.chat.ChatMessageRole;
+import com.theokanning.openai.image.CreateImageRequest;
+import com.theokanning.openai.image.ImageResult;
 import com.theokanning.openai.service.OpenAiService;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -174,12 +176,10 @@ public class GptService {
         ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(chatCplQueryReq.getHistoryID());                    // 历史记录 obj
         ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
         List<ChatMessage> historyList = JSON.parseArray(historyMesContent.getContent(), ChatMessage.class);               // 将其反序列化出来
-        LOG.info(historyMes.toString());
 
 
         ArrayList<ChatMessage> chatMessages = new ArrayList<>(historyList);
         chatMessages.add(new ChatMessage(ChatMessageRole.USER.value(), chatCplQueryReq.getQueryStr()));
-        LOG.info(chatMessages.toString());
 
         String resContent = null;
         try {
@@ -231,7 +231,6 @@ public class GptService {
                     .messages(chatMessages)
                     .n(1)
                     .maxTokens(2048)
-//                    .logitBias(new HashMap<>())
                     .build();
             resContent = service.createChatCompletion(chatCompletionRequest).getChoices().get(0).getMessage().getContent();  // GPT 的回复
 
@@ -248,7 +247,6 @@ public class GptService {
         ChatHistoryContent historyMesContent = new ChatHistoryContent();
         historyMesContent.setId(snowFlakeIdWorker.nextId());
         historyMesContent.setContent(JSON.toJSONString(chatMessages));
-        LOG.info(historyMesContent.toString());
         chatHistoryContentMapper.insert(historyMesContent);
 
         // 再更新历史记录表
@@ -261,7 +259,6 @@ public class GptService {
         chatHistory.setUserId(chatCplQueryReq.getUserID());                         // 设置历史记录所属 user
         chatHistory.setTitle(title);                                                // 设置这次对话的 title
         chatHistory.setContentId(historyMesContent.getId());                        // 设置历史记录内容 id
-        LOG.info(chatHistory.toString());
         chatHistoryMapper.insert(chatHistory);
 
         service.shutdownExecutor();                                                 // 关闭连接
@@ -303,5 +300,22 @@ public class GptService {
         ChatHistory chatHistory = chatHistoryMapper.selectByPrimaryKey(historyId);
         ChatHistoryContent chatHistoryContent = chatHistoryContentMapper.selectByPrimaryKey(chatHistory.getContentId());
         return chatHistoryContent.getContent();
+    }
+
+    public String image(String prompt) {
+        OpenAiService service = new OpenAiService(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], Duration.ofSeconds(60));
+
+        ImageResult image = null;
+        try {
+            CreateImageRequest request = CreateImageRequest.builder()
+                    .prompt(JSON.toJSONString(prompt))
+                    .build();
+
+            image = service.createImage(request);
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+            return null;
+        }
+        return image.getData().get(0).getUrl();
     }
 }
