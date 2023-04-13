@@ -2,6 +2,7 @@ package com.jxm.yitiGPT.controller;
 
 import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
+import com.jxm.yitiGPT.enmus.MessageType;
 import com.jxm.yitiGPT.listener.OpenAISubscriber;
 import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
@@ -28,32 +29,19 @@ public class GPTController {
 
     private static final Logger LOG = LoggerFactory.getLogger(GPTController.class);
 
-    private final OpenAiWebClient openAiWebClient;
-
-    @Value("${my.openai.key}")
-    private String API_KEY;
 
     @Resource
     GPTService gptService;
 
-    @GetMapping(value = "/completions/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> streamCompletions(String prompt, String user) {
-        Assert.hasLength(user, "user不能为空");
-        Assert.hasLength(prompt, "prompt不能为空");
-        checkContent(prompt);
-
-        return Flux.create(emitter -> {
-            OpenAISubscriber subscriber = new OpenAISubscriber(emitter);
-            Flux<String> openAiResponse =
-                    openAiWebClient.getChatResponse(API_KEY, user, prompt, null, null, null);
-            openAiResponse.subscribe(subscriber);
-            emitter.onDispose(subscriber);
-        });
+    @GetMapping(value = "/completions/stream/{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamCompletions(@PathVariable String queryStr) {
+//        checkContent(queryStr);
+        return gptService.send(MessageType.TEXT, queryStr);
     }
 
-    public void checkContent(String prompt) {
-        Assert.isTrue(Boolean.FALSE.equals(openAiWebClient.checkContent(API_KEY, prompt).block()), "您输入的内容违规");
-    }
+//    public void checkContent(String prompt) {
+//        Assert.isTrue(Boolean.FALSE.equals(openAiWebClient.checkContent(API_KEY, prompt).block()), "您输入的内容违规");
+//    }
 
     @PostMapping("/chatCompletion")
     @ResponseBody

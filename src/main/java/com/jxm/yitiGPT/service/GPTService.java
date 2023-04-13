@@ -4,13 +4,20 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
+import com.jxm.yitiGPT.domain.MessageText;
+import com.jxm.yitiGPT.enmus.MessageType;
+import com.jxm.yitiGPT.enmus.UserType;
+import com.jxm.yitiGPT.listener.CompletedCallBack;
+import com.jxm.yitiGPT.listener.OpenAISubscriber;
 import com.jxm.yitiGPT.mapper.ChatHistoryContentMapper;
 import com.jxm.yitiGPT.mapper.ChatHistoryMapper;
 import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
+import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
 import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
@@ -20,15 +27,17 @@ import com.theokanning.openai.image.CreateImageRequest;
 import com.theokanning.openai.image.ImageResult;
 import com.theokanning.openai.service.OpenAiService;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.Assert;
 import org.springframework.web.client.RestTemplate;
+import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,7 +45,8 @@ import java.util.Arrays;
 import java.util.List;
 
 @Service
-public class GPTService {
+@RequiredArgsConstructor
+public class GPTService implements CompletedCallBack {
 
     @Resource
     private ChatHistoryMapper chatHistoryMapper;
@@ -62,6 +72,38 @@ public class GPTService {
             "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",
             "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"
     };
+
+    private final OpenAiWebClient openAiWebClient;
+
+    @Value("${my.openai.key}")
+    private String API_KEY;
+
+
+    public Flux<String> send(MessageType type, String content) {
+
+
+        Message userMessage = new Message(MessageType.TEXT, UserType.USER, content);
+
+
+        LOG.info("prompt:{}", content);
+        return Flux.create(emitter -> {
+            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, API_KEY, this, userMessage);
+            Flux<String> openAiResponse =
+                    openAiWebClient.getChatResponse(API_KEY, content, null, null, null);
+            openAiResponse.subscribe(subscriber);
+            emitter.onDispose(subscriber);
+        });
+    }
+
+    @Override
+    public void completed(Message questions, String sessionId, String response) {
+        // mysql
+    }
+
+    @Override
+    public void fail(String sessionId) {
+        // fail
+    }
 
 
     public String sendPost2(String data) {
@@ -316,4 +358,5 @@ public class GPTService {
         }
         return image.getData().get(0).getUrl();
     }
+
 }

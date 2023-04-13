@@ -81,7 +81,7 @@ public class OpenAiWebClient {
     }
 
 
-    public Flux<String> getChatResponse(String authorization, String user, String prompt, Integer maxTokens, Double temperature, Double topP) {
+    public Flux<String> getChatResponse(String authorization, String queryStr, Integer maxTokens, Double temperature, Double topP) {
         JSONObject params = new JSONObject();
 
         params.put("model", "gpt-3.5-turbo");
@@ -89,10 +89,10 @@ public class OpenAiWebClient {
         params.put("stream", true);
         params.put("temperature", temperature);
         params.put("top_p", topP);
-        params.put("user", user);
+//        params.put("user", user);
         JSONObject message = new JSONObject();
         message.put("role", "user");
-        message.put("content", prompt);
+        message.put("content", queryStr);
         params.put("messages", Collections.singleton(message));
 
         return webClient.post()

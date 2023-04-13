@@ -1,6 +1,7 @@
 package com.jxm.yitiGPT.resp;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jxm.yitiGPT.domain.MessageText;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,7 +11,7 @@ public class ChatChoice implements Serializable {
     private long index;
 
     @JsonProperty("delta")
-    private Message delta;
+    private MessageText delta;
 
     @JsonProperty("message")
     private Message message;
