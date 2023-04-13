@@ -27,17 +27,16 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 @Service
-public class GptService {
+public class GPTService {
 
     @Resource
     private ChatHistoryMapper chatHistoryMapper;
@@ -48,7 +47,7 @@ public class GptService {
     @Resource
     private SnowFlakeIdWorker snowFlakeIdWorker;
 
-    private static final Logger LOG = LoggerFactory.getLogger(GptService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(GPTService.class);
 
     private final String[] OPENAI_TOKEN = new String[] {
             "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",
@@ -63,7 +62,6 @@ public class GptService {
             "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",
             "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"
     };
-
 
 
     public String sendPost2(String data) {
