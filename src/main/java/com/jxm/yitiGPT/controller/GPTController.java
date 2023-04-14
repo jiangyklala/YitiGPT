@@ -33,15 +33,11 @@ public class GPTController {
     @Resource
     GPTService gptService;
 
-    @GetMapping(value = "/completions/stream/{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> streamCompletions(@PathVariable String queryStr) {
-//        checkContent(queryStr);
-        return gptService.send(MessageType.TEXT, queryStr);
+    @GetMapping(value = "/completions/stream/{userID}&{historyID}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamCompletions(@PathVariable Long userID, @PathVariable Long historyID, @PathVariable String queryStr) {
+        return gptService.send(queryStr, userID, historyID);
     }
 
-//    public void checkContent(String prompt) {
-//        Assert.isTrue(Boolean.FALSE.equals(openAiWebClient.checkContent(API_KEY, prompt).block()), "您输入的内容违规");
-//    }
 
     @PostMapping("/chatCompletion")
     @ResponseBody

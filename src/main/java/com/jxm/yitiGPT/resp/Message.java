@@ -12,13 +12,11 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Message {
-    private MessageType messageType;
     private UserType userType;
     private String message;
     private Date date;
 
-    public Message(MessageType messageType, UserType userType, String message) {
-        this.messageType = messageType;
+    public Message(UserType userType, String message) {
         this.userType = userType;
         this.message = message;
         this.date = new Date();

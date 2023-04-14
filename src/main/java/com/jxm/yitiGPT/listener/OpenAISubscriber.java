@@ -6,6 +6,7 @@ import com.jxm.yitiGPT.enmus.MessageType;
 import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.resp.MessageRes;
 import com.jxm.yitiGPT.resp.OpenAIResp;
+import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -13,21 +14,27 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.FluxSink;
 
+import java.util.List;
+
 public class OpenAISubscriber implements Subscriber<String>, Disposable {
     private final FluxSink<String> emitter;
     private Subscription subscription;
     private final StringBuilder sb;
     private final CompletedCallBack completedCallBack;
     private final Message questions;
-    private final String API_KEY;
+    private final Long userID;
+    private final Long historyID;
+    private final List<Message> historyList;
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAISubscriber.class);
 
-    public OpenAISubscriber(FluxSink<String> emitter, String API_KEY, CompletedCallBack completedCallBack, Message questions) {
+    public OpenAISubscriber(FluxSink<String> emitter, CompletedCallBack completedCallBack, Message questions, Long userID, Long historyID, List<Message> historyList) {
         this.emitter = emitter;
-        this.API_KEY = API_KEY;
         this.completedCallBack = completedCallBack;
         this.questions = questions;
+        this.userID = userID;
+        this.historyID = historyID;
+        this.historyList = historyList;
         this.sb = new StringBuilder();
     }
 
@@ -43,12 +50,18 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
         if ("[DONE]".equals(data)) {
             LOG.info("OpenAI返回数据结束了");
             subscription.request(1);
-            emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, "", true)));
-            completedCallBack.completed(questions, API_KEY, sb.toString());
+            if (historyID == -1) {
+                Long historyIDTmp = new SnowFlakeIdWorker().nextId();
+                completedCallBack.completedFirst(questions, sb.toString(), userID, historyIDTmp);
+                emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyIDTmp.toString(), true)));
+            } else {
+                completedCallBack.completed(questions, sb.toString(), userID, historyID, historyList);
+                emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyID.toString(), true)));
+            }
             emitter.complete();
         } else {
             OpenAIResp openAIResp = JSON.parseObject(data, OpenAIResp.class);
-            LOG.info("OpenAI返回数据：{}", openAIResp);
+//            LOG.info("OpenAI返回数据：{}", openAIResp);
             String content = openAIResp.getChoices().get(0).getDelta().getContent();
 
             content = content == null ? "" : content;

@@ -8,8 +8,6 @@ import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
-import com.jxm.yitiGPT.domain.MessageText;
-import com.jxm.yitiGPT.enmus.MessageType;
 import com.jxm.yitiGPT.enmus.UserType;
 import com.jxm.yitiGPT.listener.CompletedCallBack;
 import com.jxm.yitiGPT.listener.OpenAISubscriber;
@@ -36,6 +34,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
 
@@ -43,6 +42,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -75,29 +75,82 @@ public class GPTService implements CompletedCallBack {
 
     private final OpenAiWebClient openAiWebClient;
 
-    @Value("${my.openai.key}")
-    private String API_KEY;
+    private final String API_KEY = OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)];
 
 
-    public Flux<String> send(MessageType type, String content) {
+    public Flux<String> send(String queryStr, Long userID, Long historyID) {
 
+        final String prompt;
+        final List<Message> historyList;
 
-        Message userMessage = new Message(MessageType.TEXT, UserType.USER, content);
+        // 查询历史记录
+        if (historyID != -1) {
+            // 获取本次对话的历史记录和内容
+            ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
+            ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
+            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);               // 将其反序列化出来
+            LOG.info("historyList: {}", historyList.toString());
 
+            String historyDialogue = historyList.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
+            prompt = String.format("%sQ:%s\nA: ", historyDialogue, queryStr);
+            LOG.info("prompt: {}", prompt);
 
-        LOG.info("prompt:{}", content);
+        } else {
+            prompt = queryStr;
+            historyList = null;
+        }
+
+        Message userMessage = new Message(UserType.USER, queryStr);
+
+        LOG.info("message:{}", userMessage);
         return Flux.create(emitter -> {
-            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, API_KEY, this, userMessage);
+            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, historyList);
             Flux<String> openAiResponse =
-                    openAiWebClient.getChatResponse(API_KEY, content, null, null, null);
+                    openAiWebClient.getChatResponse(API_KEY, prompt, 2048, null, null);
             openAiResponse.subscribe(subscriber);
             emitter.onDispose(subscriber);
         });
     }
 
+
     @Override
-    public void completed(Message questions, String sessionId, String response) {
-        // mysql
+    public void completedFirst(Message questions, String response, Long userID, Long historyID) {
+        Message botMessage = new Message(UserType.BOT, response);
+        // 先更新历史记录内容表
+        ChatHistoryContent historyMesContent = new ChatHistoryContent();
+        historyMesContent.setId(snowFlakeIdWorker.nextId());
+        historyMesContent.setContent(JSON.toJSONString(new ArrayList<>(2) {{
+            add(questions);
+            add(botMessage);
+        }}));
+        chatHistoryContentMapper.insert(historyMesContent);
+        LOG.info(historyMesContent.toString());
+        // 再更新历史记录表
+        String title = questions.getMessage().length() > 50                  // title 的长度限制在 50
+                ? questions.getMessage().substring(0, 50)
+                : questions.getMessage();
+
+        ChatHistory chatHistory = new ChatHistory();
+        chatHistory.setId(historyID);                              // 设置 id
+        chatHistory.setUserId(userID);                                              // 设置历史记录所属 user
+        chatHistory.setTitle(title);                                                // 设置这次对话的 title
+        chatHistory.setContentId(historyMesContent.getId());                        // 设置历史记录内容 id
+        chatHistoryMapper.insert(chatHistory);
+        LOG.info(chatHistory.toString());
+    }
+
+    @Override
+    public void completed(Message questions, String response, Long userID, Long historyID, List<Message> historyList) {
+        Message botMessage = new Message(UserType.BOT, response);
+        // 旧对话只需改历史记录内容表即可
+        ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
+        historyList.add(questions);
+        historyList.add(botMessage);
+        ChatHistoryContent historyMesContent = new ChatHistoryContent();
+        historyMesContent.setId(historyMes.getContentId());
+        historyMesContent.setContent(JSON.toJSONString(historyList));
+        chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
+        LOG.info("只更改记录内容: {}", historyMesContent.toString());
     }
 
     @Override
