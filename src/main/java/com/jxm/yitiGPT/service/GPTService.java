@@ -89,11 +89,11 @@ public class GPTService implements CompletedCallBack {
             ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
             ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
             historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);               // 将其反序列化出来
-            LOG.info("historyList: {}", historyList.toString());
+//            LOG.info("historyList: {}", historyList.toString());
 
             String historyDialogue = historyList.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
             prompt = String.format("%sQ:%s\nA: ", historyDialogue, queryStr);
-            LOG.info("prompt: {}", prompt);
+//            LOG.info("prompt: {}", prompt);
 
         } else {
             prompt = queryStr;
