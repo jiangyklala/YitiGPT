@@ -80,13 +80,13 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
 
     @Override
     public void onComplete() {
-        LOG.info("OpenAI返回数据完成");
+//        LOG.info("OpenAI返回数据完成");
         emitter.complete();
     }
 
     @Override
     public void dispose() {
-        LOG.warn("OpenAI返回数据取消");
+//        LOG.warn("OpenAI返回数据取消");
         emitter.complete();
     }
 }

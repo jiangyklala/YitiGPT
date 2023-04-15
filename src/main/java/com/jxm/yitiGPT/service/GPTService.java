@@ -75,9 +75,6 @@ public class GPTService implements CompletedCallBack {
 
     private final OpenAiWebClient openAiWebClient;
 
-    private final String API_KEY = OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)];
-
-
     public Flux<String> send(String queryStr, Long userID, Long historyID) {
 
         final String prompt;
@@ -106,7 +103,7 @@ public class GPTService implements CompletedCallBack {
         return Flux.create(emitter -> {
             OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, historyList);
             Flux<String> openAiResponse =
-                    openAiWebClient.getChatResponse(API_KEY, prompt, 2048, null, null);
+                    openAiWebClient.getChatResponse(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], prompt, 2048, null, null);
             openAiResponse.subscribe(subscriber);
             emitter.onDispose(subscriber);
         });
@@ -124,7 +121,7 @@ public class GPTService implements CompletedCallBack {
             add(botMessage);
         }}));
         chatHistoryContentMapper.insert(historyMesContent);
-        LOG.info(historyMesContent.toString());
+//        LOG.info(historyMesContent.toString());
         // 再更新历史记录表
         String title = questions.getMessage().length() > 50                  // title 的长度限制在 50
                 ? questions.getMessage().substring(0, 50)
@@ -136,7 +133,7 @@ public class GPTService implements CompletedCallBack {
         chatHistory.setTitle(title);                                                // 设置这次对话的 title
         chatHistory.setContentId(historyMesContent.getId());                        // 设置历史记录内容 id
         chatHistoryMapper.insert(chatHistory);
-        LOG.info(chatHistory.toString());
+//        LOG.info(chatHistory.toString());
     }
 
     @Override
