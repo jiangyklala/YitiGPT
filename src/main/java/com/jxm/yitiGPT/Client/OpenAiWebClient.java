@@ -6,6 +6,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,11 +26,10 @@ import reactor.netty.transport.ProxyProvider;
 import javax.net.ssl.SSLException;
 import java.util.Collections;
 
+@Slf4j
 @Component
 public class OpenAiWebClient {
     private WebClient webClient;
-
-    private static final Logger LOG = LoggerFactory.getLogger(OpenAiWebClient.class);
 
     @Value("${my.openai.env}")
     private String ENV;
@@ -40,7 +40,7 @@ public class OpenAiWebClient {
      */
     @PostConstruct
     public void init() {
-        LOG.info("init:{}", ENV);
+        log.info("init:{}", ENV);
         if (ENV.contains("test")) {
             initDev();
         } else {
@@ -49,7 +49,7 @@ public class OpenAiWebClient {
     }
 
     public void initDev() {
-        LOG.info("initDev");
+        log.info("initDev");
         SslContext sslContext = null;
         try {
             sslContext = SslContextBuilder
@@ -74,7 +74,7 @@ public class OpenAiWebClient {
 
 
     public void initProd() {
-        LOG.info("initProd");
+        log.info("initProd");
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, "application/json")
                 .build();
@@ -95,7 +95,7 @@ public class OpenAiWebClient {
         message.put("content", queryStr);
         params.put("messages", Collections.singleton(message));
 
-        LOG.info("API_KEY = {}", authorization);
+        log.info("API_KEY = {}", authorization);
 
         return webClient.post()
                 .uri(GPTConstant.CHAT_API)
@@ -106,7 +106,7 @@ public class OpenAiWebClient {
                 .onErrorResume(WebClientResponseException.class, ex -> {
                     HttpStatusCode status = ex.getStatusCode();
                     String res = ex.getResponseBodyAsString();
-                    LOG.error("OpenAI API error: {} {}", status, res);
+                    log.error("OpenAI API error: {} {}", status, res);
                     return Mono.error(new RuntimeException(res));
                 });
 

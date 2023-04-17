@@ -26,15 +26,14 @@ import com.theokanning.openai.image.ImageResult;
 import com.theokanning.openai.service.OpenAiService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
 
@@ -44,22 +43,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GPTService implements CompletedCallBack {
 
-    @Resource
-    private ChatHistoryMapper chatHistoryMapper;
-
-    @Resource
-    private ChatHistoryContentMapper chatHistoryContentMapper;
-
-    @Resource
-    private SnowFlakeIdWorker snowFlakeIdWorker;
-
-    private static final Logger LOG = LoggerFactory.getLogger(GPTService.class);
-
-    private final String[] OPENAI_TOKEN = new String[] {
+    private final String[] OPENAI_TOKEN = new String[]{
             "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",
             "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",
             "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",
@@ -72,11 +61,15 @@ public class GPTService implements CompletedCallBack {
             "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",
             "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"
     };
-
     private final OpenAiWebClient openAiWebClient;
+    @Resource
+    private ChatHistoryMapper chatHistoryMapper;
+    @Resource
+    private ChatHistoryContentMapper chatHistoryContentMapper;
+    @Resource
+    private SnowFlakeIdWorker snowFlakeIdWorker;
 
     public Flux<String> send(String queryStr, Long userID, Long historyID) {
-
         final String prompt;
         final List<Message> historyList;
 
@@ -86,11 +79,11 @@ public class GPTService implements CompletedCallBack {
             ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
             ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
             historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);               // 将其反序列化出来
-//            LOG.info("historyList: {}", historyList.toString());
+//            log.info("historyList: {}", historyList.toString());
 
             String historyDialogue = historyList.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
             prompt = String.format("%sQ:%s\nA: ", historyDialogue, queryStr);
-//            LOG.info("prompt: {}", prompt);
+//            log.info("prompt: {}", prompt);
 
         } else {
             prompt = queryStr;
@@ -99,7 +92,7 @@ public class GPTService implements CompletedCallBack {
 
         Message userMessage = new Message(UserType.USER, queryStr);
 
-        LOG.info("message:{}", userMessage);
+//        log.info("message:{}", userMessage);
         return Flux.create(emitter -> {
             OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, historyList);
             Flux<String> openAiResponse =
@@ -121,7 +114,7 @@ public class GPTService implements CompletedCallBack {
             add(botMessage);
         }}));
         chatHistoryContentMapper.insert(historyMesContent);
-//        LOG.info(historyMesContent.toString());
+//        log.info(historyMesContent.toString());
         // 再更新历史记录表
         String title = questions.getMessage().length() > 50                  // title 的长度限制在 50
                 ? questions.getMessage().substring(0, 50)
@@ -133,7 +126,7 @@ public class GPTService implements CompletedCallBack {
         chatHistory.setTitle(title);                                                // 设置这次对话的 title
         chatHistory.setContentId(historyMesContent.getId());                        // 设置历史记录内容 id
         chatHistoryMapper.insert(chatHistory);
-//        LOG.info(chatHistory.toString());
+//        log.info(chatHistory.toString());
     }
 
     @Override
@@ -147,7 +140,7 @@ public class GPTService implements CompletedCallBack {
         historyMesContent.setId(historyMes.getContentId());
         historyMesContent.setContent(JSON.toJSONString(historyList));
         chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
-        LOG.info("只更改记录内容: {}", historyMesContent.toString());
+        log.info("只更改记录内容: {}", historyMesContent.toString());
     }
 
     @Override
@@ -179,7 +172,7 @@ public class GPTService implements CompletedCallBack {
      */
     public ChatCplQueryResp chatCompletion(ChatCplQueryReq chatCplQueryReq) {
         ChatCplQueryResp chatCplQueryResp = null;
-        LOG.info(chatCplQueryReq.toString());
+        log.info(chatCplQueryReq.toString());
         String resContent = "";
         String queryStr = chatCplQueryReq.getQueryStr();
 
@@ -189,14 +182,14 @@ public class GPTService implements CompletedCallBack {
         if (chatCplQueryReq.getHistoryID() != -1) {                                 // 获取本次对话的历史记录
             historyMes = chatHistoryMapper.selectByPrimaryKey(chatCplQueryReq.getHistoryID());
             historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());
-            LOG.info(historyMes.toString());
-            LOG.info(historyMesContent.toString());
+            log.info(historyMes.toString());
+            log.info(historyMesContent.toString());
         }
 
         // 设置请求体
         RestTemplate client = new RestTemplate();
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.add("Authorization","Bearer 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");
+        httpHeaders.add("Authorization", "Bearer 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");
         httpHeaders.add("Content-Type", "application/json");  // 传递请求体时必须设置
 
         // 在 content 字段中, 添加本次对话的历史记录
@@ -210,8 +203,8 @@ public class GPTService implements CompletedCallBack {
                         "}", queryStr
         );
 
-        LOG.info(requestJson);
-        HttpEntity<String> entity = new HttpEntity<String>(requestJson,httpHeaders);
+        log.info(requestJson);
+        HttpEntity<String> entity = new HttpEntity<String>(requestJson, httpHeaders);
         ResponseEntity<String> response = client.exchange("https://api.openai.com/v1/chat/completions", HttpMethod.POST, entity, String.class);
 //        System.out.println(response.getBody());
         JSONObject jsonObject = JSONObject.parseObject(response.getBody());
@@ -219,13 +212,13 @@ public class GPTService implements CompletedCallBack {
             resContent = jsonObject.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content");
 
             // 下面更新本次对话的历史记录
-            LOG.info(historyMes.toString());
+            log.info(historyMes.toString());
             if (chatCplQueryReq.getHistoryID() == -1) {                                       // 此次对话为新对话
                 historyMesContent = new ChatHistoryContent();                                 // 无论是新旧对话, 都要更新 content
                 historyMesContent.setId(snowFlakeIdWorker.nextId());
                 historyMesContent.setContent(String.format("{\"role\": \"user\", \"content\": %s}", JSON.toJSONString(queryStr)) +
                         String.format(",{\"role\": \"assistant\", \"content\": %s},", JSON.toJSONString(resContent)));
-                LOG.info(historyMesContent.toString());
+                log.info(historyMesContent.toString());
                 chatHistoryContentMapper.insert(historyMesContent);
 
                 queryStr = queryStr.length() > 50 ? queryStr.substring(0, 50) : queryStr;    // title 的长度限制在 50
@@ -234,14 +227,14 @@ public class GPTService implements CompletedCallBack {
                 historyMes.setTitle(queryStr);                                               // 设置这次对话的 title
                 historyMes.setContentId(historyMesContent.getId());                          // 设置历史记录内容 id
 
-                LOG.info(historyMes.toString());
+                log.info(historyMes.toString());
                 chatHistoryMapper.insert(historyMes);
             } else {                                                                         // 此次对话为旧对话, 只用更新 content
                 historyMesContent.setContent(historyMesContent.getContent() +
                         String.format("{\"role\": \"user\", \"content\": %s}", JSON.toJSONString(queryStr)) +
                         String.format(",{\"role\": \"assistant\", \"content\": %s},", JSON.toJSONString(resContent)));
                 chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
-                LOG.info("lala" + historyMesContent.toString());
+                log.info("lala" + historyMesContent.toString());
             }
             chatCplQueryResp = new ChatCplQueryResp();
             chatCplQueryResp.setContent(resContent);
@@ -311,7 +304,9 @@ public class GPTService implements CompletedCallBack {
         OpenAiService service = new OpenAiService(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], Duration.ofSeconds(60));
 
         // 拼装问题
-        ArrayList<ChatMessage> chatMessages = new ArrayList<>() {{ add(new ChatMessage(ChatMessageRole.USER.value(), chatCplQueryReq.getQueryStr())); }};
+        ArrayList<ChatMessage> chatMessages = new ArrayList<>() {{
+            add(new ChatMessage(ChatMessageRole.USER.value(), chatCplQueryReq.getQueryStr()));
+        }};
 
         String resContent = null;
         try {
@@ -372,7 +367,7 @@ public class GPTService implements CompletedCallBack {
             PageHelper.startPage(1, 20, true);
             res = chatHistoryMapper.selectByExample(chatHistoryExample);
             PageInfo<ChatHistory> downloadListPageInfo = new PageInfo<>(res);
-            LOG.info("当前页: " + downloadListPageInfo.getPageNum()
+            log.info("当前页: " + downloadListPageInfo.getPageNum()
                     + ", 总页数: " + downloadListPageInfo.getPages()
                     + " , 总记录数: " + downloadListPageInfo.getTotal());
         } catch (Exception e) {
