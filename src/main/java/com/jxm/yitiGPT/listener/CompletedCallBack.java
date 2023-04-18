@@ -1,6 +1,5 @@
 package com.jxm.yitiGPT.listener;
 
-import com.jxm.yitiGPT.domain.MessageText;
 import com.jxm.yitiGPT.resp.Message;
 
 import java.util.List;

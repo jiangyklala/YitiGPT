@@ -1,6 +1,5 @@
 package com.jxm.yitiGPT.resp;
 
-import com.jxm.yitiGPT.enmus.MessageType;
 import com.jxm.yitiGPT.enmus.UserType;
 import lombok.AllArgsConstructor;
 import lombok.Data;

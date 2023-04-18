@@ -1,7 +1,6 @@
 package com.jxm.yitiGPT.listener;
 
 import com.alibaba.fastjson2.JSON;
-import com.jxm.yitiGPT.domain.MessageText;
 import com.jxm.yitiGPT.enmus.MessageType;
 import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.resp.MessageRes;

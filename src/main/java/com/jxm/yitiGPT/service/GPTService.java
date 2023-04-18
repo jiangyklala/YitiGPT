@@ -27,8 +27,6 @@ import com.theokanning.openai.service.OpenAiService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -48,24 +46,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GPTService implements CompletedCallBack {
 
-    private final String[] OPENAI_TOKEN = new String[]{
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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"
-    };
+    private final String[] OPENAI_TOKEN = new String[]{"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", "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", "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", "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", "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", "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", "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", "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", "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", "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", "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"};
     private final OpenAiWebClient openAiWebClient;
+
     @Resource
     private ChatHistoryMapper chatHistoryMapper;
+
     @Resource
     private ChatHistoryContentMapper chatHistoryContentMapper;
+
     @Resource
     private SnowFlakeIdWorker snowFlakeIdWorker;
 
@@ -147,7 +136,6 @@ public class GPTService implements CompletedCallBack {
     public void fail(String sessionId) {
         // fail
     }
-
 
     public String sendPost2(String data) {
 
