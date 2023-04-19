@@ -7,11 +7,16 @@ import java.util.List;
 public interface CompletedCallBack {
 
     /**
-     * 完成回调
+     * 第一次提问时的回调
      */
-    void completedFirst(Message questions, String response, Long userID, Long historyID);
+    void completedFirst(Message questions, String answer, Long userID, Long historyID);
 
-    void completed(Message questions, String response, Long userID, Long historyID, List<Message> historyList);
+    /**
+     * 第二次提问时的回调
+     */
+    void completed(Message questions, String answer, Long userID, Long historyID, List<Message> historyList);
+
+    void recordCost(String questions, String response, List<Message> historyList);
 
     void fail(String sessionId);
 

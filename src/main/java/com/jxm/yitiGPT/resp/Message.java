@@ -13,11 +13,4 @@ import java.util.Date;
 public class Message {
     private UserType userType;
     private String message;
-    private Date date;
-
-    public Message(UserType userType, String message) {
-        this.userType = userType;
-        this.message = message;
-        this.date = new Date();
-    }
 }

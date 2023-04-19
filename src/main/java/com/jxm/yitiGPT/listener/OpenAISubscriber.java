@@ -18,7 +18,7 @@ import java.util.List;
 public class OpenAISubscriber implements Subscriber<String>, Disposable {
     private final FluxSink<String> emitter;
     private Subscription subscription;
-    private final StringBuilder sb;
+    private final StringBuilder sb;                     // 每次对话返回的完整答案
     private final CompletedCallBack completedCallBack;
     private final Message questions;
     private final Long userID;
@@ -47,14 +47,16 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
     public void onNext(String data) {
 //        LOG.info("OpenAI返回数据：{}", data);
         if ("[DONE]".equals(data)) {
-            LOG.info("OpenAI返回数据结束了");
+//            LOG.info("OpenAI返回数据结束了");
             subscription.request(1);
             if (historyID == -1) {
                 Long historyIDTmp = new SnowFlakeIdWorker().nextId();
                 completedCallBack.completedFirst(questions, sb.toString(), userID, historyIDTmp);
+                completedCallBack.recordCost(questions.getMessage(), sb.toString(), null);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyIDTmp.toString(), true)));
             } else {
                 completedCallBack.completed(questions, sb.toString(), userID, historyID, historyList);
+                completedCallBack.recordCost(questions.getMessage(), sb.toString(), historyList);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyID.toString(), true)));
             }
             emitter.complete();

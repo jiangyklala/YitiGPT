@@ -92,7 +92,7 @@ public class OpenAiWebClient {
         message.put("content", queryStr);
         params.put("messages", Collections.singleton(message));
 
-        log.info("API_KEY = {}", authorization);
+//        log.info("API_KEY = {}", authorization);
 
         return webClient.post()
                 .uri(GPTConstant.CHAT_API)

@@ -17,6 +17,10 @@ import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
 import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingRegistry;
+import com.knuddels.jtokkit.api.EncodingType;
 import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatMessage;
@@ -24,9 +28,11 @@ import com.theokanning.openai.completion.chat.ChatMessageRole;
 import com.theokanning.openai.image.CreateImageRequest;
 import com.theokanning.openai.image.ImageResult;
 import com.theokanning.openai.service.OpenAiService;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -34,10 +40,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,6 +59,11 @@ public class GPTService implements CompletedCallBack {
 
     private final String[] OPENAI_TOKEN = new String[]{"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", "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", "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", "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", "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", "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", "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", "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", "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", "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", "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"};
     private final OpenAiWebClient openAiWebClient;
+    private static Encoding enc;
+    public static JedisPool jedisPool;
+
+    @Value("${my.redis.ip}")
+    private String myRedisIP;
 
     @Resource
     private ChatHistoryMapper chatHistoryMapper;
@@ -57,6 +73,33 @@ public class GPTService implements CompletedCallBack {
 
     @Resource
     private SnowFlakeIdWorker snowFlakeIdWorker;
+
+    @PostConstruct
+    public void init() {
+        enc = Encodings.newDefaultEncodingRegistry().getEncoding(EncodingType.CL100K_BASE);
+        jedisPool = new JedisPool(setJedisPoolConfig(), myRedisIP, 6379, 5000, "jiang", 1);
+    }
+
+    /**
+     * 配置连接池
+     */
+    public JedisPoolConfig setJedisPoolConfig() {
+        JedisPoolConfig config = new JedisPoolConfig();
+
+        config.setMaxTotal(200);                                    // 最大连接对象
+        config.setJmxEnabled(true);
+        config.setMaxIdle(100);                                     // 最大闲置对象
+        config.setMinIdle(100);                                     // 最小闲置对象
+        config.setTestOnBorrow(true);                               // 向资源池借用连接时是否做有效性检测
+        config.setTestOnReturn(true);                               // 向资源池归还连接时是否做有效性检测
+        config.setTestWhileIdle(true);                              // 是否在空闲资源检测时通过 ping 命令检测连接的有效性,无效连接将被销毁
+        config.setTimeBetweenEvictionRuns(Duration.ofSeconds(5));   // 空闲资源的检测周期
+        config.setMaxWait(Duration.ofSeconds(5));                   // 当资源池连接用尽后，调用者的最大等待时间
+        config.setMinEvictableIdleTime(Duration.ofSeconds(10));
+        config.setBlockWhenExhausted(true);                         // 当获取不到连接时应阻塞
+
+        return config;
+    }
 
     public Flux<String> send(String queryStr, Long userID, Long historyID) {
         final String prompt;
@@ -93,8 +136,8 @@ public class GPTService implements CompletedCallBack {
 
 
     @Override
-    public void completedFirst(Message questions, String response, Long userID, Long historyID) {
-        Message botMessage = new Message(UserType.BOT, response);
+    public void completedFirst(Message questions, String answer, Long userID, Long historyID) {
+        Message botMessage = new Message(UserType.BOT, answer);
         // 先更新历史记录内容表
         ChatHistoryContent historyMesContent = new ChatHistoryContent();
         historyMesContent.setId(snowFlakeIdWorker.nextId());
@@ -119,8 +162,8 @@ public class GPTService implements CompletedCallBack {
     }
 
     @Override
-    public void completed(Message questions, String response, Long userID, Long historyID, List<Message> historyList) {
-        Message botMessage = new Message(UserType.BOT, response);
+    public void completed(Message questions, String answer, Long userID, Long historyID, List<Message> historyList) {
+        Message botMessage = new Message(UserType.BOT, answer);
         // 旧对话只需改历史记录内容表即可
         ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
         historyList.add(questions);
@@ -129,7 +172,32 @@ public class GPTService implements CompletedCallBack {
         historyMesContent.setId(historyMes.getContentId());
         historyMesContent.setContent(JSON.toJSONString(historyList));
         chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
-        log.info("只更改记录内容: {}", historyMesContent.toString());
+//        log.info("只更改记录内容: {}", historyMesContent.toString());
+    }
+
+    @Override
+    public void recordCost(String questions, String response, List<Message> historyList) {
+        int totalTokens = 0;
+
+        // 如果有历史记录, 也将其计算入总 tokens 中
+        if (null != historyList) {
+            for (Message message : historyList) {
+                totalTokens += enc.encode(message.getMessage()).size();
+            }
+        }
+
+        // 计算本次对话消耗的总 tokens
+        totalTokens += enc.encode(questions).size() + enc.encode(response).size();
+        String nowTime = new SimpleDateFormat("yyyyMMdd").format(new Date()); // 只要年月日
+//        log.info("total_tokens: {}", totalTokens);
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            // 记录当日问题的总次数
+            jedis.incr("yt:gpt:times:" + nowTime);
+
+            // 记录当日消耗的总 tokens
+            jedis.incrBy("yt:gpt:tokens:" + nowTime, totalTokens);
+        }
     }
 
     @Override
