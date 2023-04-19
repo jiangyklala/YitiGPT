@@ -16,6 +16,7 @@ import reactor.core.publisher.Flux;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 @Controller
@@ -36,7 +37,8 @@ public class GPTController {
      */
     @GetMapping(value = "/completions/stream/{userID}&{historyID}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamCompletions(@PathVariable Long userID, @PathVariable Long historyID, @PathVariable String queryStr) throws UnsupportedEncodingException {
-        return gptService.send(URLDecoder.decode(queryStr, StandardCharsets.UTF_8), userID, historyID);
+        byte[] decodeQueryStr = Base64.getDecoder().decode(queryStr);
+        return gptService.send(URLDecoder.decode(new String(decodeQueryStr), StandardCharsets.UTF_8), userID, historyID);
     }
 
     /**
@@ -89,7 +91,7 @@ public class GPTController {
     @ResponseBody
     public CommonResp<String> image(@PathVariable String prompt) {
         CommonResp<String> resp = new CommonResp<>();
-        String res = gptService.image(prompt);
+        String res = gptService.image(URLDecoder.decode(prompt, StandardCharsets.UTF_8));
         if (res == null) {
             resp.setSuccess(false);
             resp.setMessage("接口超时, 请重试");
