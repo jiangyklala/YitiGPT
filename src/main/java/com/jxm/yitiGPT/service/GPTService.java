@@ -8,18 +8,21 @@ import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
+import com.jxm.yitiGPT.domain.User;
 import com.jxm.yitiGPT.enmus.UserType;
 import com.jxm.yitiGPT.listener.CompletedCallBack;
 import com.jxm.yitiGPT.listener.OpenAISubscriber;
 import com.jxm.yitiGPT.mapper.ChatHistoryContentMapper;
 import com.jxm.yitiGPT.mapper.ChatHistoryMapper;
+import com.jxm.yitiGPT.mapper.UserMapper;
+import com.jxm.yitiGPT.mapper.cust.UserMapperCust;
 import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
+import com.jxm.yitiGPT.resp.CommonResp;
 import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
 import com.knuddels.jtokkit.Encodings;
 import com.knuddels.jtokkit.api.Encoding;
-import com.knuddels.jtokkit.api.EncodingRegistry;
 import com.knuddels.jtokkit.api.EncodingType;
 import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
@@ -46,10 +49,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -73,6 +73,12 @@ public class GPTService implements CompletedCallBack {
 
     @Resource
     private SnowFlakeIdWorker snowFlakeIdWorker;
+
+    @Resource
+    private UserMapperCust userMapperCust;
+
+    @Resource
+    private UserMapper userMapper;
 
     @PostConstruct
     public void init() {
@@ -188,7 +194,9 @@ public class GPTService implements CompletedCallBack {
 
         // 计算本次对话消耗的总 tokens
         totalTokens += enc.encode(questions).size() + enc.encode(response).size();
-        String nowTime = new SimpleDateFormat("yyyyMMdd").format(new Date()); // 只要年月日
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");   // 只要年月日
+        sdf.setTimeZone(TimeZone.getTimeZone("GMT+8"));
+        String nowTime = sdf.format(new Date());
 //        log.info("total_tokens: {}", totalTokens);
 
         try (Jedis jedis = jedisPool.getResource()) {
@@ -197,6 +205,8 @@ public class GPTService implements CompletedCallBack {
 
             // 记录当日消耗的总 tokens
             jedis.incrBy("yt:gpt:tokens:" + nowTime, totalTokens);
+        } catch (Exception e) {
+            log.error("更新 GPT 提问次数以及消耗token数失败");
         }
     }
 
@@ -460,4 +470,42 @@ public class GPTService implements CompletedCallBack {
         return image.getData().get(0).getUrl();
     }
 
+    public void payForAns(Long userID, Long historyID, CommonResp<List<Message>> resp) {
+        long finalConsume = 1L;
+        List<Message> historyList = null;
+
+        // 查询历史记录
+        if (historyID != -1) {
+            // 获取本次对话的历史记录和内容
+            ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                                         // 历史记录 obj
+            ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
+            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);                       // 将其反序列化出来
+
+            // 计算需要扣除的提问次数
+            int totalChar = 0;
+            for (Message message : historyList) {
+                totalChar += message.getMessage().length();
+            }
+            finalConsume += (totalChar / 300);
+            log.info("finalConsume: {}", finalConsume);
+
+            // 设置返回的历史记录
+            resp.setContent(historyList);
+        }
+
+        try {
+            User user = userMapper.selectByPrimaryKey(userID);  // 查的是整个 user, 性能可提升
+            if (user.getBalance() < finalConsume) {
+                resp.setSuccess(false);
+                resp.setMessage("剩余提问次数不足");
+                return;
+            }
+            userMapperCust.balanceGetAndDecrNum(userID, finalConsume);
+        } catch (RuntimeException e) {
+            resp.setSuccess(false);
+            resp.setMessage("用户权限验证出错");
+            log.error("权限验证(扣除提问次数)出错");
+        }
+
+    }
 }

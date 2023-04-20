@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jxm.yitiGPT.mapper.cust.UserMapperCust">
+
+    <update id="balanceGetAndDecrNum">
+        update user
+        set balance = balance - #{count}
+        where id = #{id}
+    </update>
+
+    <update id="payWithCount">
+        update user
+        set balance = balance + #{count}
+        where email = #{userEmail}
+    </update>
+
+</mapper>

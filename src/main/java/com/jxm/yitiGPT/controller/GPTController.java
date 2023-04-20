@@ -28,6 +28,20 @@ public class GPTController {
     GPTService gptService;
 
     /**
+     * 对用户进行权限验证: 永久会员通行, 普通用户和普通会员扣费
+     *
+     * @param userID    用户 ID
+     * @param historyID 记录 ID
+     */
+    @GetMapping("/payForAns/{userID}/{historyID}")
+    @ResponseBody
+    public CommonResp payForAns(@PathVariable Long userID, @PathVariable Long historyID) {
+        CommonResp resp = new CommonResp();
+        gptService.payForAns(userID, historyID, resp);
+        return resp;
+    }
+
+    /**
      * chatGPT 长对话接口, 以流操作返回
      *
      * @param userID    用户 userID
