@@ -194,7 +194,9 @@ public class GPTService implements CompletedCallBack {
 
         // 计算本次对话消耗的总 tokens
         totalTokens += enc.encode(questions).size() + enc.encode(response).size();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");   // 只要年月日
+
+        // 获取当日日期
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
         sdf.setTimeZone(TimeZone.getTimeZone("GMT+8"));
         String nowTime = sdf.format(new Date());
 //        log.info("total_tokens: {}", totalTokens);
@@ -486,7 +488,7 @@ public class GPTService implements CompletedCallBack {
             for (Message message : historyList) {
                 totalChar += message.getMessage().length();
             }
-            finalConsume += (totalChar / 300);
+            finalConsume = (totalChar + 299) / 300;        // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
             log.info("finalConsume: {}", finalConsume);
 
             // 设置返回的历史记录
