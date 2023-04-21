@@ -159,7 +159,7 @@ public class GPTService implements CompletedCallBack {
                 : questions.getMessage();
 
         ChatHistory chatHistory = new ChatHistory();
-        chatHistory.setId(historyID);                              // 设置 id
+        chatHistory.setId(historyID);                                               // 设置 id
         chatHistory.setUserId(userID);                                              // 设置历史记录所属 user
         chatHistory.setTitle(title);                                                // 设置这次对话的 title
         chatHistory.setContentId(historyMesContent.getId());                        // 设置历史记录内容 id
@@ -199,7 +199,6 @@ public class GPTService implements CompletedCallBack {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
         sdf.setTimeZone(TimeZone.getTimeZone("GMT+8"));
         String nowTime = sdf.format(new Date());
-//        log.info("total_tokens: {}", totalTokens);
 
         try (Jedis jedis = jedisPool.getResource()) {
             // 记录当日问题的总次数
@@ -210,6 +209,9 @@ public class GPTService implements CompletedCallBack {
         } catch (Exception e) {
             log.error("更新 GPT 提问次数以及消耗token数失败");
         }
+
+        log.info("每日提问信息记录完成, 时间: {}, 消耗 token 数: {}", nowTime, totalTokens);
+
     }
 
     @Override
@@ -489,11 +491,12 @@ public class GPTService implements CompletedCallBack {
                 totalChar += message.getMessage().length();
             }
             finalConsume = (totalChar + 299) / 300;        // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
-            log.info("finalConsume: {}", finalConsume);
 
             // 设置返回的历史记录
             resp.setContent(historyList);
         }
+
+        log.info("用户ID: {}, 消耗提问次数: {}, 是否是新对话: {}", userID, finalConsume, historyID == -1);
 
         try {
             User user = userMapper.selectByPrimaryKey(userID);  // 查的是整个 user, 性能可提升

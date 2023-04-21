@@ -16,6 +16,9 @@ public interface CompletedCallBack {
      */
     void completed(Message questions, String answer, Long userID, Long historyID, List<Message> historyList);
 
+    /**
+     * 记录每日提问信息
+     */
     void recordCost(String questions, String response, List<Message> historyList);
 
     void fail(String sessionId);
