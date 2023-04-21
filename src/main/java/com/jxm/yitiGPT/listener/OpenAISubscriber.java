@@ -18,12 +18,12 @@ import java.util.List;
 public class OpenAISubscriber implements Subscriber<String>, Disposable {
     private final FluxSink<String> emitter;
     private Subscription subscription;
-    private final StringBuilder sb;                     // 每次对话返回的完整答案
-    private final CompletedCallBack completedCallBack;
-    private final Message questions;
-    private final Long userID;
-    private final Long historyID;
-    private final List<Message> historyList;
+    private final StringBuilder sb;                      // 每次对话返回的完整答案
+    private final CompletedCallBack completedCallBack;   // 回调接口
+    private final Message questions;                     // 用户的问题
+    private final Long userID;                           // userID
+    private final Long historyID;                        // 历史记录 ID
+    private final List<Message> historyList;             // 历史记录 List
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAISubscriber.class);
 
@@ -45,9 +45,7 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
 
     @Override
     public void onNext(String data) {
-//        LOG.info("OpenAI返回数据：{}", data);
         if ("[DONE]".equals(data)) {
-//            LOG.info("OpenAI返回数据结束了");
             subscription.request(1);
             if (historyID == -1) {
                 Long historyIDTmp = new SnowFlakeIdWorker().nextId();
@@ -62,7 +60,6 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
             emitter.complete();
         } else {
             OpenAIResp openAIResp = JSON.parseObject(data, OpenAIResp.class);
-//            LOG.info("OpenAI返回数据：{}", openAIResp);
             String content = openAIResp.getChoices().get(0).getDelta().getContent();
 
             content = content == null ? "" : content;

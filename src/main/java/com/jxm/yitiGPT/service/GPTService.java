@@ -107,6 +107,14 @@ public class GPTService implements CompletedCallBack {
         return config;
     }
 
+    /**
+     * 发送提问信息
+     *
+     * @param queryStr  用户的问题
+     * @param userID    userID
+     * @param historyID 历史记录 ID
+     * @return 包
+     */
     public Flux<String> send(String queryStr, Long userID, Long historyID) {
         final String prompt;
         final List<Message> historyList;
@@ -114,14 +122,14 @@ public class GPTService implements CompletedCallBack {
         // 查询历史记录
         if (historyID != -1) {
             // 获取本次对话的历史记录和内容
-            ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
+            ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                                         // 历史记录 obj
             ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
-            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);               // 将其反序列化出来
-//            log.info("historyList: {}", historyList.toString());
+            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);                                     // 将其反序列化出来
 
             String historyDialogue = historyList.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
+
+            // 将问题格式化
             prompt = String.format("%sQ:%s\nA: ", historyDialogue, queryStr);
-//            log.info("prompt: {}", prompt);
 
         } else {
             prompt = queryStr;
@@ -154,7 +162,7 @@ public class GPTService implements CompletedCallBack {
         chatHistoryContentMapper.insert(historyMesContent);
 //        log.info(historyMesContent.toString());
         // 再更新历史记录表
-        String title = questions.getMessage().length() > 50                  // title 的长度限制在 50
+        String title = questions.getMessage().length() > 50                         // title 的长度限制在 50
                 ? questions.getMessage().substring(0, 50)
                 : questions.getMessage();
 
@@ -219,6 +227,7 @@ public class GPTService implements CompletedCallBack {
         // fail
     }
 
+    @Deprecated
     public String sendPost2(String data) {
 
         String OPENAI_TOKEN = "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";
@@ -240,6 +249,7 @@ public class GPTService implements CompletedCallBack {
     /**
      * 长对话 1.0
      */
+    @Deprecated
     public ChatCplQueryResp chatCompletion(ChatCplQueryReq chatCplQueryReq) {
         ChatCplQueryResp chatCplQueryResp = null;
         log.info(chatCplQueryReq.toString());
@@ -318,6 +328,7 @@ public class GPTService implements CompletedCallBack {
      * 长对话 2.0
      * 使用 jar 包
      */
+    @Deprecated
     public ChatCplQueryResp chatCompletion2(ChatCplQueryReq chatCplQueryReq) {
         if (chatCplQueryReq.getHistoryID() == -1) {
             return chatCompletionFirst(chatCplQueryReq);
@@ -367,8 +378,9 @@ public class GPTService implements CompletedCallBack {
     }
 
     /**
-     * 首次对话
+     * 首次对话提问 1.0
      */
+    @Deprecated
     private ChatCplQueryResp chatCompletionFirst(ChatCplQueryReq chatCplQueryReq) {
         ChatCplQueryResp resp = new ChatCplQueryResp();
         OpenAiService service = new OpenAiService(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], Duration.ofSeconds(60));
@@ -457,6 +469,12 @@ public class GPTService implements CompletedCallBack {
         return chatHistoryContent.getContent();
     }
 
+    /**
+     * 生成 image 接口
+     *
+     * @param prompt 用户的描述
+     * @return 生成图片的 URL
+     */
     public String image(String prompt) {
         OpenAiService service = new OpenAiService(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], Duration.ofSeconds(60));
 
@@ -474,6 +492,13 @@ public class GPTService implements CompletedCallBack {
         return image.getData().get(0).getUrl();
     }
 
+    /**
+     * 为本次提问
+     *
+     * @param userID    userID
+     * @param historyID 历史记录 ID
+     * @param resp      回调 resp
+     */
     public void payForAns(Long userID, Long historyID, CommonResp<List<Message>> resp) {
         long finalConsume = 1L;
         List<Message> historyList = null;
@@ -495,6 +520,7 @@ public class GPTService implements CompletedCallBack {
             // 设置返回的历史记录
             resp.setContent(historyList);
         }
+        finalConsume = finalConsume > 8 ? 8 : finalConsume;
 
         log.info("用户ID: {}, 消耗提问次数: {}, 是否是新对话: {}", userID, finalConsume, historyID == -1);
 
@@ -511,6 +537,5 @@ public class GPTService implements CompletedCallBack {
             resp.setMessage("用户权限验证出错");
             log.error("权限验证(扣除提问次数)出错");
         }
-
     }
 }

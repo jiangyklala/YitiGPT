@@ -27,15 +27,6 @@ public class LogAspect {
     @Resource
     private SnowFlakeIdWorker snowFlakeIdWorker;
 
-//    public SnowFlakeIdWorker getSnowFlakeIdWorker() {
-//        return snowFlakeIdWorker;
-//    }
-//
-//    @Autowired
-//    public void setSnowFlakeIdWorker(SnowFlakeIdWorker snowFlakeIdWorker) {
-//        LogAspect.snowFlakeIdWorker = snowFlakeIdWorker;
-//    }
-
     /** 定义一个切点 */
     @Pointcut("execution(public * com.jxm.*.controller..*Controller.*(..))")
     public void controllerPointcut() {}

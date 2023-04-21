@@ -33,7 +33,7 @@ public class OpenAiWebClient {
 
 
     /**
-     * dev采用代理访问
+     * dev 采用代理访问
      */
     @PostConstruct
     public void init() {
@@ -56,12 +56,14 @@ public class OpenAiWebClient {
         } catch (SSLException e) {
             throw new RuntimeException(e);
         }
+
         // 创建HttpClient对象，并设置代理
         SslContext finalSslContext = sslContext;
         HttpClient httpClient = HttpClient.create()
                 .secure(sslContextSpec -> sslContextSpec.sslContext(finalSslContext))
                 .tcpConfiguration(tcpClient -> tcpClient.proxy(proxy ->
                         proxy.type(ProxyProvider.Proxy.HTTP).host("127.0.0.1").port(7890)));
+
         //海外正式不需要代理
         ClientHttpConnector connector = new ReactorClientHttpConnector(httpClient);
         this.webClient = WebClient.builder().clientConnector(connector)
@@ -69,7 +71,9 @@ public class OpenAiWebClient {
                 .build();
     }
 
-
+    /**
+     * 生产环境初始化
+     */
     public void initProd() {
         log.info("initProd");
         this.webClient = WebClient.builder()
@@ -78,6 +82,16 @@ public class OpenAiWebClient {
     }
 
 
+    /**
+     * 获取连续对话的回答
+     *
+     * @param authorization API_KEY
+     * @param queryStr      问题
+     * @param maxTokens     最大 token 限制
+     * @param temperature   temperature
+     * @param topP          topP
+     * @return 流返回
+     */
     public Flux<String> getChatResponse(String authorization, String queryStr, Integer maxTokens, Double temperature, Double topP) {
         JSONObject params = new JSONObject();
 
@@ -109,6 +123,12 @@ public class OpenAiWebClient {
 
     }
 
+    /**
+     * 检查内容
+     *
+     * @param authorization API_KEY
+     * @param prompt        问题
+     */
     public Mono<Boolean> checkContent(String authorization, String prompt) {
         JSONObject params = new JSONObject();
         params.put("input", prompt);
