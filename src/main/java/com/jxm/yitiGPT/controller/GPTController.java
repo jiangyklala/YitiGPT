@@ -1,5 +1,6 @@
 package com.jxm.yitiGPT.controller;
 
+import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
@@ -8,10 +9,13 @@ import com.jxm.yitiGPT.service.GPTService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -19,13 +23,31 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
+@Slf4j
 @Controller
 @RequestMapping("/gpt")
 @RequiredArgsConstructor  // ?
 public class GPTController {
 
     @Resource
-    GPTService gptService;
+    private GPTService gptService;
+
+    @Resource
+    private OpenAiWebClient openAiWebClient;
+
+    /**
+     * 内容检测
+     *
+     * @param queryStr
+     * @return
+     */
+    @GetMapping("/checkContent/{queryStr}")
+    public Mono<ServerResponse> checkContent(@PathVariable String queryStr) {
+        byte[] decodeBase64QueryStr = Base64.getDecoder().decode(queryStr);
+        String decodeQueryStr = URLDecoder.decode(new String(decodeBase64QueryStr), StandardCharsets.UTF_8);
+        log.info("req:{}", decodeQueryStr);
+        return openAiWebClient.checkContent(decodeQueryStr);
+    }
 
     /**
      * 对用户进行权限验证: 永久会员通行, 普通用户和普通会员扣费

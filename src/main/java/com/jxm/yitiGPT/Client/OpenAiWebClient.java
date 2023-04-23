@@ -2,6 +2,7 @@ package com.jxm.yitiGPT.Client;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.jxm.yitiGPT.Constant.GPTConstant;
+import com.jxm.yitiGPT.service.GPTService;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -10,11 +11,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -22,6 +26,8 @@ import reactor.netty.transport.ProxyProvider;
 
 import javax.net.ssl.SSLException;
 import java.util.Collections;
+
+import static com.jxm.yitiGPT.service.GPTService.OPENAI_TOKEN;
 
 @Slf4j
 @Component
@@ -126,19 +132,25 @@ public class OpenAiWebClient {
     /**
      * 检查内容
      *
-     * @param authorization API_KEY
-     * @param prompt        问题
+     * @param prompt 问题
      */
-    public Mono<Boolean> checkContent(String authorization, String prompt) {
+    public Mono<ServerResponse> checkContent(String prompt) {
         JSONObject params = new JSONObject();
         params.put("input", prompt);
-        Mono<JSONObject> toMono = webClient.post()
+        return webClient.post()
                 .uri(GPTConstant.CONTENT_AUDIT)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + authorization)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)])
                 .bodyValue(params.toJSONString())
                 .retrieve()
-                .bodyToMono(JSONObject.class);
-        JSONObject jsonObject = toMono.block();
-        return Mono.just(jsonObject.getJSONArray("results").getJSONObject(0).getBoolean("flagged"));
+                .bodyToMono(JSONObject.class)
+                .flatMap(jsonObject -> {
+                    // 在这里处理 JSON 对象，例如将其转换为其他类型
+                    // 并将结果包装为响应体返回
+                    log.info(jsonObject.toJSONString());
+                    Boolean aBoolean = jsonObject.getJSONArray("results").getJSONObject(0).getBoolean("flagged");
+                    return ServerResponse.ok()
+                            .contentType(MediaType.TEXT_PLAIN)
+                            .body(BodyInserters.fromValue(aBoolean));
+                });
     }
 }

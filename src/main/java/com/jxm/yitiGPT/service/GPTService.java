@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.jxm.yitiGPT.Client.OpenAiWebClient;
+import com.jxm.yitiGPT.Constant.GPTConstant;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
@@ -42,7 +43,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -57,7 +60,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GPTService implements CompletedCallBack {
 
-    private final String[] OPENAI_TOKEN = new String[]{"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", "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", "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", "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", "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", "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", "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", "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", "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", "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", "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"};
+    public static final String[] OPENAI_TOKEN = new String[]{"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", "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", "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", "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", "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", "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", "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", "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", "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", "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", "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"};
     private final OpenAiWebClient openAiWebClient;
     private static Encoding enc;
     public static JedisPool jedisPool;
@@ -493,7 +496,7 @@ public class GPTService implements CompletedCallBack {
     }
 
     /**
-     * 为本次提问
+     * 提问次数消耗
      *
      * @param userID    userID
      * @param historyID 历史记录 ID
