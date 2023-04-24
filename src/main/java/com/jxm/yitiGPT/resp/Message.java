@@ -5,12 +5,17 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Message {
     private UserType userType;
     private String message;
+    private Boolean ifUse;
+
+    public Message(UserType userType, String message) {
+        this.ifUse = false;
+        this.userType = userType;
+        this.message = message;
+    }
 }

@@ -3,6 +3,7 @@ package com.jxm.yitiGPT.controller;
 import com.jxm.yitiGPT.Client.OpenAiWebClient;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.req.ChatCplQueryReq;
+import com.jxm.yitiGPT.req.PaymentReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
 import com.jxm.yitiGPT.resp.CommonResp;
 import com.jxm.yitiGPT.service.GPTService;
@@ -51,30 +52,32 @@ public class GPTController {
 
     /**
      * 对用户进行权限验证: 永久会员通行, 普通用户和普通会员扣费
-     *
-     * @param userID    用户 ID
-     * @param historyID 记录 ID
      */
-    @GetMapping("/payForAns/{userID}/{historyID}")
+    @PostMapping("/payForAns")
     @ResponseBody
-    public CommonResp payForAns(@PathVariable Long userID, @PathVariable Long historyID) {
-        CommonResp resp = new CommonResp();
-        gptService.payForAns(userID, historyID, resp);
+    public CommonResp<Integer> payForAns(@RequestBody PaymentReq paymentReq) {
+        CommonResp<Integer> resp = new CommonResp<Integer>();
+        byte[] decodeBase64QueryStr = Base64.getDecoder().decode(paymentReq.getQueryStr());
+        String decodeQueryStr = URLDecoder.decode(new String(decodeBase64QueryStr), StandardCharsets.UTF_8);
+        gptService.payForAns(paymentReq.getUserID(), paymentReq.getHistoryID(), decodeQueryStr, resp);
         return resp;
     }
 
     /**
-     * chatGPT 长对话接口, 以流操作返回
+     * chatGPT 长对话接口, 以流 操作返回
      *
      * @param userID    用户 userID
      * @param historyID 当前对话的 ID
      * @param queryStr  prompt
      * @return 流数据
      */
-    @GetMapping(value = "/completions/stream/{userID}&{historyID}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> streamCompletions(@PathVariable Long userID, @PathVariable Long historyID, @PathVariable String queryStr) throws UnsupportedEncodingException {
-        byte[] decodeQueryStr = Base64.getDecoder().decode(queryStr);
-        return gptService.send(URLDecoder.decode(new String(decodeQueryStr), StandardCharsets.UTF_8), userID, historyID);
+    @GetMapping(value = "/completions/stream/{userID}&{historyID}&{totalToken}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamCompletions(@PathVariable Long userID,
+                                          @PathVariable Long historyID,
+                                          @PathVariable Integer totalToken,
+                                          @PathVariable String queryStr) throws UnsupportedEncodingException {
+        String decodeQueryStr = URLDecoder.decode(new String(Base64.getDecoder().decode(queryStr)), StandardCharsets.UTF_8);
+        return gptService.send(decodeQueryStr, userID, historyID, totalToken);
     }
 
     /**

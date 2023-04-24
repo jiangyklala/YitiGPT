@@ -5,7 +5,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.jxm.yitiGPT.Client.OpenAiWebClient;
-import com.jxm.yitiGPT.Constant.GPTConstant;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
@@ -43,9 +42,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -118,7 +115,7 @@ public class GPTService implements CompletedCallBack {
      * @param historyID 历史记录 ID
      * @return 包
      */
-    public Flux<String> send(String queryStr, Long userID, Long historyID) {
+    public Flux<String> send(String queryStr, Long userID, Long historyID, Integer totalToken) {
         final String prompt;
         final List<Message> historyList;
 
@@ -129,11 +126,22 @@ public class GPTService implements CompletedCallBack {
             ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
             historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);                                     // 将其反序列化出来
 
-            String historyDialogue = historyList.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
+            List<Message> historyListTmp = new ArrayList<>(historyList.subList(0, Math.min(historyList.size(), 2)));
+
+            for (int i = 2; i < historyList.size(); ++i) {
+                if (historyList.get(i).getIfUse()) {
+                    historyListTmp.addAll(historyList.subList(i, historyList.size()));
+//                    log.info("historyListTmp : {}", historyListTmp.toString());
+                    break;
+                }
+            }
+
+            String historyDialogue = historyListTmp.stream().map(e -> String.format(e.getUserType().getCode(), e.getMessage())).collect(Collectors.joining());
 
             // 将问题格式化
-            prompt = String.format("%sQ:%s\nA: ", historyDialogue, queryStr);
+            prompt = String.format("%s\nA: ", historyDialogue);
 
+            log.info("prompt: {}", prompt);
         } else {
             prompt = queryStr;
             historyList = null;
@@ -143,9 +151,9 @@ public class GPTService implements CompletedCallBack {
 
 //        log.info("message:{}", userMessage);
         return Flux.create(emitter -> {
-            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, historyList);
+            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, totalToken, historyList);
             Flux<String> openAiResponse =
-                    openAiWebClient.getChatResponse(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], prompt, 2048, null, null);
+                    openAiWebClient.getChatResponse(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], prompt, 1024, null, null);
             openAiResponse.subscribe(subscriber);
             emitter.onDispose(subscriber);
         });
@@ -179,11 +187,10 @@ public class GPTService implements CompletedCallBack {
     }
 
     @Override
-    public void completed(Message questions, String answer, Long userID, Long historyID, List<Message> historyList) {
+    public void completed(String answer, Long userID, Long historyID, List<Message> historyList) {
         Message botMessage = new Message(UserType.BOT, answer);
         // 旧对话只需改历史记录内容表即可
         ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                    // 历史记录 obj
-        historyList.add(questions);
         historyList.add(botMessage);
         ChatHistoryContent historyMesContent = new ChatHistoryContent();
         historyMesContent.setId(historyMes.getContentId());
@@ -193,18 +200,9 @@ public class GPTService implements CompletedCallBack {
     }
 
     @Override
-    public void recordCost(String questions, String response, List<Message> historyList) {
-        int totalTokens = 0;
-
-        // 如果有历史记录, 也将其计算入总 tokens 中
-        if (null != historyList) {
-            for (Message message : historyList) {
-                totalTokens += enc.encode(message.getMessage()).size();
-            }
-        }
-
-        // 计算本次对话消耗的总 tokens
-        totalTokens += enc.encode(questions).size() + enc.encode(response).size();
+    public void recordCost(Integer totalToken, String response, List<Message> historyList) {
+        // 计算本次对话的答案, 消耗的 tokens
+        totalToken += enc.countTokens(response) + 21;
 
         // 获取当日日期
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
@@ -216,12 +214,12 @@ public class GPTService implements CompletedCallBack {
             jedis.incr("yt:gpt:times:" + nowTime);
 
             // 记录当日消耗的总 tokens
-            jedis.incrBy("yt:gpt:tokens:" + nowTime, totalTokens);
+            jedis.incrBy("yt:gpt:tokens:" + nowTime, totalToken);
         } catch (Exception e) {
             log.error("更新 GPT 提问次数以及消耗token数失败");
         }
 
-        log.info("每日提问信息记录完成, 时间: {}, 消耗 token 数: {}", nowTime, totalTokens);
+        log.info("每日提问信息记录完成, 时间: {}, 消耗 token 数: {}", nowTime, totalToken);
 
     }
 
@@ -502,28 +500,96 @@ public class GPTService implements CompletedCallBack {
      * @param historyID 历史记录 ID
      * @param resp      回调 resp
      */
-    public void payForAns(Long userID, Long historyID, CommonResp<List<Message>> resp) {
-        long finalConsume = 1L;
+    public void payForAns(Long userID, Long historyID, String queryStr, CommonResp<Integer> resp) {
+        long finalConsume = 1L;                 // 最终消耗的提问次数
+        int finalToken = 0;                 // 当次对话的, 最终提问需要消耗的总 token
+        int totalChar = 0;                  // 最终提问的总字符数
+        int tokenOffset = 5;
         List<Message> historyList = null;
+        Message queryStrMessage = new Message(UserType.USER, queryStr, true);
 
-        // 查询历史记录
+        if (enc.countTokens(queryStrMessage.getMessage()) > 3000) {
+            resp.setMessage("提问内容过长!! 减少一点呗");
+            resp.setSuccess(false);
+            return;
+        } else {
+            totalChar += queryStr.length();
+            finalToken += enc.countTokens(queryStrMessage.getMessage()) + tokenOffset;
+        }
+
         if (historyID != -1) {
+            // 查询历史记录
             // 获取本次对话的历史记录和内容
             ChatHistory historyMes = chatHistoryMapper.selectByPrimaryKey(historyID);                                         // 历史记录 obj
             ChatHistoryContent historyMesContent = chatHistoryContentMapper.selectByPrimaryKey(historyMes.getContentId());    // 历史记录内容 obj
-            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);                       // 将其反序列化出来
+            historyList = JSON.parseArray(historyMesContent.getContent(), Message.class);                                     // 将其反序列化出来
 
-            // 计算需要扣除的提问次数
-            int totalChar = 0;
-            for (Message message : historyList) {
-                totalChar += message.getMessage().length();
+            // 第一次对话, 肯定需要 (如果可以的话)
+            if (finalToken < 3000) {
+                Message messageUser = historyList.get(0);
+                Message messageAssistant = historyList.get(1);
+
+                finalToken += enc.countTokens(messageUser.getMessage()) + tokenOffset
+                        + enc.countTokens(messageAssistant.getMessage()) + tokenOffset;
+                totalChar += messageUser.getMessage().length() + messageAssistant.getMessage().length();
+            } else {
+                resp.setMessage("本次连续对话内容过长了呦, 开启一个新对话呗");
+                resp.setSuccess(false);
+                return;
             }
-            finalConsume = (totalChar + 299) / 300;        // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
 
-            // 设置返回的历史记录
-            resp.setContent(historyList);
+
+            // 之后倒着往上截取, 每两个 Message 为一段对话
+            boolean stopFlag = false;
+            for (int i = historyList.size() - 1; i >= 2; --i) {
+                Message messageUser = historyList.get(i);
+                Message messageAssistant = historyList.get(--i);
+                if (stopFlag) {
+                    messageUser.setIfUse(false);
+                    messageAssistant.setIfUse(false);
+                    continue;
+                }
+                int token = enc.countTokens(messageUser.getMessage()) + tokenOffset
+                        + enc.countTokens(messageAssistant.getMessage()) + tokenOffset;
+
+                if (token + finalToken > 2900) {
+                    log.info("too big! i = {}, token = {}, finalToken = {}", i, token, finalToken);
+                    stopFlag = true;
+                    // 留 4096 - 1024 - 2900 = 172 用于别的消耗 (user_type 之类的)
+                    messageUser.setIfUse(false);
+                    messageAssistant.setIfUse(false);
+                } else {
+                    // 给需要用作本次对话的上下文做标记
+                    messageUser.setIfUse(true);
+                    messageAssistant.setIfUse(true);
+
+                    finalToken += token;
+                    totalChar += messageUser.getMessage().length() + messageAssistant.getMessage().length();
+                }
+            }
+
+            // 将最后一次提问加入
+            historyList.add(queryStrMessage);
+
+            try {
+                historyMesContent.setContent(JSON.toJSONString(historyList));
+                chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
+            } catch (RuntimeException e) {
+                resp.setSuccess(false);
+                resp.setMessage("用户权限验证出错");
+                log.error("更新 history_content 表失败", e);
+                return;
+            }
+
         }
+
+        // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
+        finalConsume = (totalChar + 299) / 300;
+        log.info("finalToken: {}, totalChar: {}, finalConsume: {}", finalToken, totalChar, finalConsume);
         finalConsume = finalConsume > 8 ? 8 : finalConsume;
+
+        // 设置当前 (所有历史记录和) 提问消耗的 token
+        resp.setContent(finalToken);
 
         log.info("用户ID: {}, 消耗提问次数: {}, 是否是新对话: {}", userID, finalConsume, historyID == -1);
 

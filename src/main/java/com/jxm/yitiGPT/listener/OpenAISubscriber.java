@@ -24,16 +24,18 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
     private final Long userID;                           // userID
     private final Long historyID;                        // 历史记录 ID
     private final List<Message> historyList;             // 历史记录 List
+    private final Integer totalToken;                    // 当次对话的, 最终提问需要消耗的总 token
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAISubscriber.class);
 
-    public OpenAISubscriber(FluxSink<String> emitter, CompletedCallBack completedCallBack, Message questions, Long userID, Long historyID, List<Message> historyList) {
+    public OpenAISubscriber(FluxSink<String> emitter, CompletedCallBack completedCallBack, Message questions, Long userID, Long historyID, Integer totalToken, List<Message> historyList) {
         this.emitter = emitter;
         this.completedCallBack = completedCallBack;
         this.questions = questions;
         this.userID = userID;
         this.historyID = historyID;
         this.historyList = historyList;
+        this.totalToken = totalToken;
         this.sb = new StringBuilder();
     }
 
@@ -50,11 +52,11 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
             if (historyID == -1) {
                 Long historyIDTmp = new SnowFlakeIdWorker().nextId();
                 completedCallBack.completedFirst(questions, sb.toString(), userID, historyIDTmp);
-                completedCallBack.recordCost(questions.getMessage(), sb.toString(), null);
+                completedCallBack.recordCost(totalToken, sb.toString(), null);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyIDTmp.toString(), true)));
             } else {
-                completedCallBack.completed(questions, sb.toString(), userID, historyID, historyList);
-                completedCallBack.recordCost(questions.getMessage(), sb.toString(), historyList);
+                completedCallBack.completed(sb.toString(), userID, historyID, historyList);
+                completedCallBack.recordCost(totalToken, sb.toString(), historyList);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyID.toString(), true)));
             }
             emitter.complete();

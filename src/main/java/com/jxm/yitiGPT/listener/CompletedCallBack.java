@@ -14,12 +14,12 @@ public interface CompletedCallBack {
     /**
      * 第二次提问时的回调
      */
-    void completed(Message questions, String answer, Long userID, Long historyID, List<Message> historyList);
+    void completed(String answer, Long userID, Long historyID, List<Message> historyList);
 
     /**
      * 记录每日提问信息
      */
-    void recordCost(String questions, String response, List<Message> historyList);
+    void recordCost(Integer totalToken, String response, List<Message> historyList);
 
     void fail(String sessionId);
 
