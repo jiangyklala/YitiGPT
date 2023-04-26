@@ -141,7 +141,7 @@ public class GPTService implements CompletedCallBack {
             // 将问题格式化
             prompt = String.format("%s\nA: ", historyDialogue);
 
-            log.info("prompt: {}", prompt);
+//            log.info("prompt: {}", prompt);
         } else {
             prompt = queryStr;
             historyList = null;
@@ -502,8 +502,8 @@ public class GPTService implements CompletedCallBack {
      */
     public void payForAns(Long userID, Long historyID, String queryStr, CommonResp<Integer> resp) {
         long finalConsume = 1L;                 // 最终消耗的提问次数
-        int finalToken = 0;                 // 当次对话的, 最终提问需要消耗的总 token
-        int totalChar = 0;                  // 最终提问的总字符数
+        int finalToken = 0;                     // 当次对话的, 最终提问需要消耗的总 token
+        int totalChar = 0;                      // 最终提问的总字符数
         int tokenOffset = 5;
         List<Message> historyList = null;
         Message queryStrMessage = new Message(UserType.USER, queryStr, true);
@@ -553,7 +553,7 @@ public class GPTService implements CompletedCallBack {
                         + enc.countTokens(messageAssistant.getMessage()) + tokenOffset;
 
                 if (token + finalToken > 2900) {
-                    log.info("too big! i = {}, token = {}, finalToken = {}", i, token, finalToken);
+//                    log.info("too big! i = {}, token = {}, finalToken = {}", i, token, finalToken);
                     stopFlag = true;
                     // 留 4096 - 1024 - 2900 = 172 用于别的消耗 (user_type 之类的)
                     messageUser.setIfUse(false);
@@ -585,7 +585,7 @@ public class GPTService implements CompletedCallBack {
 
         // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
         finalConsume = (totalChar + 299) / 300;
-        log.info("finalToken: {}, totalChar: {}, finalConsume: {}", finalToken, totalChar, finalConsume);
+//        log.info("finalToken: {}, totalChar: {}, finalConsume: {}", finalToken, totalChar, finalConsume);
         finalConsume = finalConsume > 8 ? 8 : finalConsume;
 
         // 设置当前 (所有历史记录和) 提问消耗的 token
