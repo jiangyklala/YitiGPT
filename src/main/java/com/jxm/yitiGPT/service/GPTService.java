@@ -57,7 +57,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GPTService implements CompletedCallBack {
 
-    public static final String[] OPENAI_TOKEN = new String[]{"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", "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", "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", "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", "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", "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", "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", "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", "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", "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", "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"};
+    public static final String[] OPENAI_TOKEN = new String[]{
+            "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",
+            "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",
+    };
     private final OpenAiWebClient openAiWebClient;
     private static Encoding enc;
     public static JedisPool jedisPool;
@@ -200,9 +203,22 @@ public class GPTService implements CompletedCallBack {
     }
 
     @Override
-    public void recordCost(Integer totalToken, String response, List<Message> historyList) {
+    public void recordCost(Long userID, Integer totalToken, String response, List<Message> historyList) {
         // 计算本次对话的答案, 消耗的 tokens
         totalToken += enc.countTokens(response) + 21;
+
+        // 扣除次数
+        // token 超过500，扣除一次，其他逻辑不变。另外，大于300小于500也+1，但是小于300不扣除。
+        long finalConsume = (totalToken / 500 == 0) ? 1 : totalToken / 500;
+        if (totalToken % 500 > 300) {
+            ++finalConsume;
+        }
+
+        try {
+            userMapperCust.balanceGetAndDecrNum(userID, finalConsume);
+        } catch (RuntimeException e) {
+            log.error("权限验证(扣除提问次数)出错");
+        }
 
         // 获取当日日期
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
@@ -219,7 +235,7 @@ public class GPTService implements CompletedCallBack {
             log.error("更新 GPT 提问次数以及消耗token数失败");
         }
 
-        log.info("每日提问信息记录完成, 时间: {}, 消耗 token 数: {}", nowTime, totalToken);
+        log.info("每日提问信息记录完成, 时间: {}, userID: {}, 消耗提问次数: {}, 消耗 token 数: {}", nowTime, userID, finalConsume, totalToken);
 
     }
 
@@ -501,9 +517,7 @@ public class GPTService implements CompletedCallBack {
      * @param resp      回调 resp
      */
     public void payForAns(Long userID, Long historyID, String queryStr, CommonResp<Integer> resp) {
-        long finalConsume = 1L;                 // 最终消耗的提问次数
         int finalToken = 0;                     // 当次对话的, 最终提问需要消耗的总 token
-        int totalChar = 0;                      // 最终提问的总字符数
         int tokenOffset = 5;
         List<Message> historyList = null;
         Message queryStrMessage = new Message(UserType.USER, queryStr, true);
@@ -513,7 +527,6 @@ public class GPTService implements CompletedCallBack {
             resp.setSuccess(false);
             return;
         } else {
-            totalChar += queryStr.length();
             finalToken += enc.countTokens(queryStrMessage.getMessage()) + tokenOffset;
         }
 
@@ -531,7 +544,6 @@ public class GPTService implements CompletedCallBack {
 
                 finalToken += enc.countTokens(messageUser.getMessage()) + tokenOffset
                         + enc.countTokens(messageAssistant.getMessage()) + tokenOffset;
-                totalChar += messageUser.getMessage().length() + messageAssistant.getMessage().length();
             } else {
                 resp.setMessage("本次连续对话内容过长了呦, 开启一个新对话呗");
                 resp.setSuccess(false);
@@ -564,47 +576,48 @@ public class GPTService implements CompletedCallBack {
                     messageAssistant.setIfUse(true);
 
                     finalToken += token;
-                    totalChar += messageUser.getMessage().length() + messageAssistant.getMessage().length();
                 }
             }
 
             // 将最后一次提问加入
             historyList.add(queryStrMessage);
 
+            // 更改用户历史记录
             try {
                 historyMesContent.setContent(JSON.toJSONString(historyList));
                 chatHistoryContentMapper.updateByPrimaryKeyWithBLOBs(historyMesContent);
             } catch (RuntimeException e) {
                 resp.setSuccess(false);
-                resp.setMessage("用户权限验证出错");
+                resp.setMessage("更新历史记录表失败");
                 log.error("更新 history_content 表失败", e);
                 return;
             }
 
         }
+        log.info("用户ID: {}, 提问消耗的token: {}, 是否是新对话: {}", userID, finalToken, historyID == -1);
 
-        // 超过200小于300，也+1，比如250，那就+1，比如400，那就400-300=100，也也是+1，如果是500，也+2
-        finalConsume = (totalChar + 299) / 300;
-//        log.info("finalToken: {}, totalChar: {}, finalConsume: {}", finalToken, totalChar, finalConsume);
-        finalConsume = finalConsume > 8 ? 8 : finalConsume;
-
-        // 设置当前 (所有历史记录和) 提问消耗的 token
-        resp.setContent(finalToken);
-
-        log.info("用户ID: {}, 消耗提问次数: {}, 是否是新对话: {}", userID, finalConsume, historyID == -1);
-
+        long finalConsume = (finalToken / 500 == 0) ? 1 : finalToken / 500;
+        if (finalToken % 500 > 300) {
+            ++finalConsume;
+        }
         try {
             User user = userMapper.selectByPrimaryKey(userID);  // 查的是整个 user, 性能可提升
             if (user.getBalance() < finalConsume) {
+                log.info("剩余提问次数不足:{}, 需要:{}", user.getBalance(), finalConsume);
                 resp.setSuccess(false);
                 resp.setMessage("剩余提问次数不足");
                 return;
             }
-            userMapperCust.balanceGetAndDecrNum(userID, finalConsume);
         } catch (RuntimeException e) {
             resp.setSuccess(false);
             resp.setMessage("用户权限验证出错");
             log.error("权限验证(扣除提问次数)出错");
         }
+
+
+        // 设置当前 (所有历史记录和) 提问消耗的 token
+        resp.setContent(finalToken);
+
+
     }
 }

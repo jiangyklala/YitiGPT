@@ -52,11 +52,11 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
             if (historyID == -1) {
                 Long historyIDTmp = new SnowFlakeIdWorker().nextId();
                 completedCallBack.completedFirst(questions, sb.toString(), userID, historyIDTmp);
-                completedCallBack.recordCost(totalToken, sb.toString(), null);
+                completedCallBack.recordCost(userID, totalToken, sb.toString(), null);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyIDTmp.toString(), true)));
             } else {
                 completedCallBack.completed(sb.toString(), userID, historyID, historyList);
-                completedCallBack.recordCost(totalToken, sb.toString(), historyList);
+                completedCallBack.recordCost(userID, totalToken, sb.toString(), historyList);
                 emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, historyID.toString(), true)));
             }
             emitter.complete();

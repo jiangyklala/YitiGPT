@@ -35,7 +35,7 @@ max_tokens)。
 
 用户发一条 ”继续“ 后，程序就会根据 `1.` 的逻辑进行缩减上下文。缩减的示意图如下：
 
-![](https://xiaoj-1309630359.cos.ap-nanjing.myqcloud.com/202304251703630.png)
+![](https://xiaoj-1309630359.cos.ap-nanjing.myqcloud.com/202304260926681.png)
 
 在本项目中，max_tokens 设置为 1024 token。也就是说，用户的提问，包括所有上下文，最多不能超过 4096 - 1024 = 3072 token。给接口预留了
 1024 token 的返回空间。若接口实际将要返回的内容大于 1024，接口返回停止；小于 1024，无事发生。
@@ -54,22 +54,3 @@ max_tokens)。
 
 + 无休止的在同一次对话中提问：不断缩减上下文，保证每次提问的总 token 小于 3072。
 
-# Contribution
-
-Anyone is welcome and encouraged to contribute. If you discover a bug, or think the project could use an enhancement,
-follow these steps:
-
-1. Create an issue and offer to code a solution. We can discuss the issue and decide whether any code would be a good
-   addition to the project.
-2. Fork the project. [https://github.com/nlpie/biomedicus-tokenizer/fork]
-3. Create Feature branch (`git checkout -b feature-name`)
-4. Code your solution.
-
-- Follow the [Google style guide for Java](https://google.github.io/styleguide/javaguide.html). There are IDE profiles
-  available [here](https://github.com/google/styleguide).
-- Write unit tests for any non-trivial aspects of your code. If you are fixing a bug write a regression test: one that
-  confirms the behavior you fixed stays fixed.
-
-1. Commit to branch. (`git commit -am 'Summary of changes'`)
-2. Push to GitHub (`git push origin feature-name`)
-3. Create a pull request on this repository from your forked project. We will review and discuss your code and merge it.
