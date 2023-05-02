@@ -19,7 +19,7 @@ public interface CompletedCallBack {
     /**
      * 记录每日提问信息
      */
-    void recordCost(Long userID, Integer totalToken, String response, List<Message> historyList);
+    void recordCost(Long userID, Integer userType, Integer totalToken, String response, List<Message> historyList);
 
     void fail(String sessionId);
 

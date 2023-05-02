@@ -6,6 +6,7 @@ import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.req.PaymentReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
 import com.jxm.yitiGPT.resp.CommonResp;
+import com.jxm.yitiGPT.resp.PaymentResp;
 import com.jxm.yitiGPT.service.GPTService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -55,10 +56,13 @@ public class GPTController {
      */
     @PostMapping("/payForAns")
     @ResponseBody
-    public CommonResp<Integer> payForAns(@RequestBody PaymentReq paymentReq) {
-        CommonResp<Integer> resp = new CommonResp<Integer>();
+    public CommonResp<PaymentResp> payForAns(@RequestBody PaymentReq paymentReq) {
+        CommonResp<PaymentResp> resp = new CommonResp<>();
+
+        // 将提问的内容解码
         byte[] decodeBase64QueryStr = Base64.getDecoder().decode(paymentReq.getQueryStr());
         String decodeQueryStr = URLDecoder.decode(new String(decodeBase64QueryStr), StandardCharsets.UTF_8);
+
         gptService.payForAns(paymentReq.getUserID(), paymentReq.getHistoryID(), decodeQueryStr, resp);
         return resp;
     }
@@ -71,13 +75,14 @@ public class GPTController {
      * @param queryStr  prompt
      * @return 流数据
      */
-    @GetMapping(value = "/completions/stream/{userID}&{historyID}&{totalToken}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/completions/stream/{userID}&{userType}&{historyID}&{totalToken}&{queryStr}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamCompletions(@PathVariable Long userID,
+                                          @PathVariable Integer userType,
                                           @PathVariable Long historyID,
                                           @PathVariable Integer totalToken,
                                           @PathVariable String queryStr) throws UnsupportedEncodingException {
         String decodeQueryStr = URLDecoder.decode(new String(Base64.getDecoder().decode(queryStr)), StandardCharsets.UTF_8);
-        return gptService.send(decodeQueryStr, userID, historyID, totalToken);
+        return gptService.send(decodeQueryStr, userID, userType, historyID, totalToken);
     }
 
     /**

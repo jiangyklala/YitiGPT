@@ -20,6 +20,7 @@ import com.jxm.yitiGPT.req.ChatCplQueryReq;
 import com.jxm.yitiGPT.resp.ChatCplQueryResp;
 import com.jxm.yitiGPT.resp.CommonResp;
 import com.jxm.yitiGPT.resp.Message;
+import com.jxm.yitiGPT.resp.PaymentResp;
 import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
 import com.knuddels.jtokkit.Encodings;
 import com.knuddels.jtokkit.api.Encoding;
@@ -118,7 +119,7 @@ public class GPTService implements CompletedCallBack {
      * @param historyID 历史记录 ID
      * @return 包
      */
-    public Flux<String> send(String queryStr, Long userID, Long historyID, Integer totalToken) {
+    public Flux<String> send(String queryStr, Long userID, Integer userType, Long historyID, Integer totalToken) {
         final String prompt;
         final List<Message> historyList;
 
@@ -154,7 +155,7 @@ public class GPTService implements CompletedCallBack {
 
 //        log.info("message:{}", userMessage);
         return Flux.create(emitter -> {
-            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, historyID, totalToken, historyList);
+            OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, userType, historyID, totalToken, historyList);
             Flux<String> openAiResponse =
                     openAiWebClient.getChatResponse(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], prompt, 1024, null, null);
             openAiResponse.subscribe(subscriber);
@@ -203,7 +204,7 @@ public class GPTService implements CompletedCallBack {
     }
 
     @Override
-    public void recordCost(Long userID, Integer totalToken, String response, List<Message> historyList) {
+    public void recordCost(Long userID, Integer userType, Integer totalToken, String response, List<Message> historyList) {
         // 计算本次对话的答案, 消耗的 tokens
         totalToken += enc.countTokens(response) + 21;
 
@@ -215,7 +216,9 @@ public class GPTService implements CompletedCallBack {
         }
 
         try {
-            userMapperCust.balanceGetAndDecrNum(userID, finalConsume);
+            if (userType == 1) {
+                userMapperCust.balanceGetAndDecrNum(userID, finalConsume);
+            }
         } catch (RuntimeException e) {
             log.error("权限验证(扣除提问次数)出错");
         }
@@ -235,7 +238,7 @@ public class GPTService implements CompletedCallBack {
             log.error("更新 GPT 提问次数以及消耗token数失败");
         }
 
-        log.info("每日提问信息记录完成, 时间: {}, userID: {}, 消耗提问次数: {}, 消耗 token 数: {}", nowTime, userID, finalConsume, totalToken);
+        log.info("每日提问信息记录完成, 时间: {}, userID: {}, 用户类型: {}, 消耗提问次数: {}, 消耗 token 数: {}", nowTime, userID, getUserTypeStr(userType), finalConsume, totalToken);
 
     }
 
@@ -516,9 +519,10 @@ public class GPTService implements CompletedCallBack {
      * @param historyID 历史记录 ID
      * @param resp      回调 resp
      */
-    public void payForAns(Long userID, Long historyID, String queryStr, CommonResp<Integer> resp) {
+    public void payForAns(Long userID, Long historyID, String queryStr, CommonResp<PaymentResp> resp) {
         int finalToken = 0;                     // 当次对话的, 最终提问需要消耗的总 token
         int tokenOffset = 5;
+        PaymentResp paymentResp = new PaymentResp();
         List<Message> historyList = null;
         Message queryStrMessage = new Message(UserType.USER, queryStr, true);
 
@@ -600,9 +604,18 @@ public class GPTService implements CompletedCallBack {
         if (finalToken % 500 > 300) {
             ++finalConsume;
         }
+
+        // 检测提问次数是否足够
         try {
             User user = userMapper.selectByPrimaryKey(userID);  // 查的是整个 user, 性能可提升
-            if (user.getBalance() < finalConsume) {
+
+            // 检测会员是否到期
+            ifVipEnd(resp, user);
+
+            paymentResp.setUserType(user.getType());
+
+            // 普通用户提问次数不足
+            if (user.getType() == 1 && user.getBalance() < finalConsume) {
                 log.info("剩余提问次数不足:{}, 需要:{}", user.getBalance(), finalConsume);
                 resp.setSuccess(false);
                 resp.setMessage("剩余提问次数不足");
@@ -614,10 +627,43 @@ public class GPTService implements CompletedCallBack {
             log.error("权限验证(扣除提问次数)出错");
         }
 
-
         // 设置当前 (所有历史记录和) 提问消耗的 token
-        resp.setContent(finalToken);
-
+        paymentResp.setFinalToken(finalToken);
+        resp.setContent(paymentResp);
 
     }
+
+    private void ifVipEnd(CommonResp<PaymentResp> resp, User user) {
+        if (user.getType() != 2) {
+            return;
+        }
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            String vipKey = "yt:vip:" + user.getEmail();
+            boolean exists = jedis.exists(vipKey);
+
+            if (!exists) {
+                // 到期了
+                user.setType(1);
+                try {
+                    userMapper.updateByPrimaryKey(user);
+                } catch (Exception e) {
+                    resp.setSuccess(false);
+                    resp.setMessage("用户权限验证出错");
+                    log.error("权限验证(会员到期, 更改用户类型)出错");
+                }
+            }
+        }
+    }
+
+
+    private String getUserTypeStr(Integer userType) {
+        return switch (userType) {
+            case 1 -> "普通用户";
+            case 2 -> "会员";
+            case 3 -> "超级会员";
+            default -> "未知用户";
+        };
+    }
+
 }
