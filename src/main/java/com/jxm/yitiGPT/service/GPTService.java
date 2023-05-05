@@ -229,11 +229,22 @@ public class GPTService implements CompletedCallBack {
         String nowTime = sdf.format(new Date());
 
         try (Jedis jedis = jedisPool.getResource()) {
-            // 记录当日问题的总次数
-            jedis.incr("yt:gpt:times:" + nowTime);
+            switch (userType) {
+                case 1 -> {
+                    // 记录当日[普通用户]问题的总次数 -normal_times
+                    jedis.incr("yt:gpt:ntimes:" + nowTime);
 
-            // 记录当日消耗的总 tokens
-            jedis.incrBy("yt:gpt:tokens:" + nowTime, totalToken);
+                    // 记录当日[普通用户]消耗的总 tokens -normal_tokens
+                    jedis.incrBy("yt:gpt:ntokens:" + nowTime, totalToken);
+                }
+                case 2 -> {
+                    // 记录当日[会员]问题的总次数 -vip_times
+                    jedis.incr("yt:gpt:vtimes:" + nowTime);
+
+                    // 记录当日[会员]消耗的总 tokens -vip_tokens
+                    jedis.incrBy("yt:gpt:vtokens:" + nowTime, totalToken);
+                }
+            }
         } catch (Exception e) {
             log.error("更新 GPT 提问次数以及消耗token数失败");
         }
@@ -647,6 +658,7 @@ public class GPTService implements CompletedCallBack {
                 user.setType(1);
                 try {
                     userMapper.updateByPrimaryKey(user);
+                    log.info("vip 到期, userEmail: {}", user.getEmail());
                 } catch (Exception e) {
                     resp.setSuccess(false);
                     resp.setMessage("用户权限验证出错");
