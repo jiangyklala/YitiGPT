@@ -60,7 +60,7 @@ public class GPTService implements CompletedCallBack {
 
     public static final String[] OPENAI_TOKEN = new String[]{
             "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",
-            "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",
+            "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",
     };
     private final OpenAiWebClient openAiWebClient;
     private static Encoding enc;
