@@ -210,10 +210,11 @@ public class GPTService implements CompletedCallBack {
 
         // 扣除次数
         // token 超过500，扣除一次，其他逻辑不变。另外，大于300小于500也+1，但是小于300不扣除。
-        long finalConsume = (totalToken / 500 == 0) ? 1 : totalToken / 500;
-        if (totalToken % 500 > 300) {
-            ++finalConsume;
-        }
+//        long finalConsume = (totalToken / 500 == 0) ? 1 : totalToken / 500;
+//        if (totalToken % 500 > 300) {
+//            ++finalConsume;
+//        }
+        long finalConsume = 1L;
 
         try {
             if (userType == 1) {
@@ -611,10 +612,11 @@ public class GPTService implements CompletedCallBack {
         }
         log.info("用户ID: {}, 提问消耗的token: {}, 是否是新对话: {}", userID, finalToken, historyID == -1);
 
-        long finalConsume = (finalToken / 500 == 0) ? 1 : finalToken / 500;
-        if (finalToken % 500 > 300) {
-            ++finalConsume;
-        }
+//        long finalConsume = (finalToken / 500 == 0) ? 1 : finalToken / 500;
+//        if (finalToken % 500 > 300) {
+//            ++finalConsume;
+//        }
+        long finalConsume = 1L;
 
         // 检测提问次数是否足够
         try {
