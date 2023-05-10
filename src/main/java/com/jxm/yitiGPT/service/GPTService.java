@@ -507,21 +507,43 @@ public class GPTService implements CompletedCallBack {
      * @param prompt 用户的描述
      * @return 生成图片的 URL
      */
-    public String image(String prompt) {
+    public void image(String prompt, Long userID, CommonResp<String> resp) {
         OpenAiService service = new OpenAiService(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], Duration.ofSeconds(60));
+
+        // 检测用户是否是会员
+        User user = userMapper.selectByPrimaryKey(userID);  // 查的是整个 user, 性能可提升
+        if (user.getType() == 1) {
+            resp.setSuccess(false);
+            resp.setMessage("目前画图只能会员使用呦~");
+            return;
+        }
 
         ImageResult image = null;
         try {
             CreateImageRequest request = CreateImageRequest.builder()
                     .prompt(JSON.toJSONString(prompt))
+                    .size("512x512")  // 512x512
                     .build();
 
             image = service.createImage(request);
         } catch (RuntimeException e) {
             e.printStackTrace();
-            return null;
+            return;
         }
-        return image.getData().get(0).getUrl();
+
+        // 记录信息
+        // 获取当日日期
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+        sdf.setTimeZone(TimeZone.getTimeZone("GMT+8"));
+        String nowTime = sdf.format(new Date());
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.incr("yt:gpti:vtimes:" + nowTime);
+        } catch (Exception e) {
+            log.error("更新 GPT-image 提问次数以及消耗token数失败");
+        }
+
+        resp.setContent(image.getData().get(0).getUrl());
     }
 
     /**

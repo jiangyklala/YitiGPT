@@ -131,16 +131,15 @@ public class GPTController {
      * @param prompt 描述图片 prompt
      * @return GPT 生成的临时图片的 URL
      */
-    @PostMapping("/image/{prompt}")
+    @PostMapping("/image/{prompt}&{userID}")
     @ResponseBody
-    public CommonResp<String> image(@PathVariable String prompt) {
+    public CommonResp<String> image(@PathVariable String prompt, @PathVariable Long userID) {
         CommonResp<String> resp = new CommonResp<>();
-        String res = gptService.image(URLDecoder.decode(prompt, StandardCharsets.UTF_8));
-        if (res == null) {
-            resp.setSuccess(false);
-            resp.setMessage("接口超时, 请重试");
-        }
-        resp.setContent(res);
+
+        String decodePromptStr = URLDecoder.decode(new String(Base64.getDecoder().decode(prompt)), StandardCharsets.UTF_8);
+
+        gptService.image(decodePromptStr, userID, resp);
+
         return resp;
     }
 
