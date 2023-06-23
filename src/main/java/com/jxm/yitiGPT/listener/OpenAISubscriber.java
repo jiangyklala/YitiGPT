@@ -6,6 +6,7 @@ import com.jxm.yitiGPT.resp.Message;
 import com.jxm.yitiGPT.resp.MessageRes;
 import com.jxm.yitiGPT.resp.OpenAIResp;
 import com.jxm.yitiGPT.utils.SnowFlakeIdWorker;
+import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -15,6 +16,7 @@ import reactor.core.publisher.FluxSink;
 
 import java.util.List;
 
+@Slf4j
 public class OpenAISubscriber implements Subscriber<String>, Disposable {
     private final FluxSink<String> emitter;
     private Subscription subscription;
@@ -67,8 +69,9 @@ public class OpenAISubscriber implements Subscriber<String>, Disposable {
         } else {
             OpenAIResp openAIResp = JSON.parseObject(data, OpenAIResp.class);
             String content = openAIResp.getChoices().get(0).getDelta().getContent();
-
+//            log.info("data: {}", content);
             content = content == null ? "" : content;
+
             emitter.next(JSON.toJSONString(new MessageRes(MessageType.TEXT, content, null)));
             sb.append(content);
             subscription.request(1);
