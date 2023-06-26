@@ -61,8 +61,6 @@ public class GPTService implements CompletedCallBack {
     public static final String[] OPENAI_TOKEN = new String[]{
             "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",
             "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",
-            "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",
-            "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",
             "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",
             "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",
             "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",

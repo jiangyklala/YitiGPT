@@ -123,7 +123,8 @@ public class OpenAiWebClient {
                 .onErrorResume(WebClientResponseException.class, ex -> {
                     HttpStatusCode status = ex.getStatusCode();
                     String res = ex.getResponseBodyAsString();
-                    log.error("OpenAI API error: {} {}", status, res);
+                    log.error("API_KEY = {} \n" +
+                            "OpenAI API error: {} {}", authorization, status, res);
                     return Mono.error(new RuntimeException(res));
                 });
 
