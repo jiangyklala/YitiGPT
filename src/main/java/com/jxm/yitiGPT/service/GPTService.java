@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.jxm.yitiGPT.Client.OpenAiWebClient;
+import com.jxm.yitiGPT.config.ApiKeyLoader;
 import com.jxm.yitiGPT.domain.ChatHistory;
 import com.jxm.yitiGPT.domain.ChatHistoryContent;
 import com.jxm.yitiGPT.domain.ChatHistoryExample;
@@ -48,6 +49,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.*;
@@ -58,39 +60,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GPTService implements CompletedCallBack {
 
-    public static final String[] OPENAI_TOKEN = new String[]{
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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",
-            "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"
-
-    };
+    public static String[] OPENAI_TOKEN;
     private final OpenAiWebClient openAiWebClient;
     private static Encoding enc;
     public static JedisPool jedisPool;
@@ -113,10 +83,14 @@ public class GPTService implements CompletedCallBack {
     @Resource
     private UserMapper userMapper;
 
+    @Resource
+    private ApiKeyLoader apiKeyLoader;
+
     @PostConstruct
-    public void init() {
+    public void init() throws IOException {
         enc = Encodings.newDefaultEncodingRegistry().getEncoding(EncodingType.CL100K_BASE);
         jedisPool = new JedisPool(setJedisPoolConfig(), myRedisIP, 6379, 5000, "jiang", 1);
+        OPENAI_TOKEN = apiKeyLoader.loadTextFile();
     }
 
     /**
