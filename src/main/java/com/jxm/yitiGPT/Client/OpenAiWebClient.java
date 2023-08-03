@@ -1,12 +1,16 @@
 package com.jxm.yitiGPT.Client;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.jxm.yitiGPT.Constant.GPTConstant;
+import com.jxm.yitiGPT.service.ApiKeyService;
 import com.jxm.yitiGPT.service.GPTService;
+import com.jxm.yitiGPT.service.MailService;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -37,6 +41,11 @@ public class OpenAiWebClient {
     @Value("${my.openai.env}")
     private String ENV;
 
+    @Resource
+    private MailService mailService;
+
+    @Resource
+    private ApiKeyService apiKeyService;
 
     /**
      * dev 采用代理访问
@@ -125,6 +134,21 @@ public class OpenAiWebClient {
                     String res = ex.getResponseBodyAsString();
                     log.error("API_KEY = {} \n" +
                             "OpenAI API error: {} {}", authorization, status, res);
+                    JSONObject errorJSON = JSON.parseObject(res);
+
+                    // 判断是否 key 失效
+                    if (errorJSON.getJSONObject("error").get("code").equals("insufficient_quota")) {
+                        // 发邮件报警并删除失效 key
+                        mailService.warnMeSend("API_KEY 失效: " + authorization + "\n\n"
+                                + "失效信息: " + "\n"
+                                + res + "\n\n"
+                                + "此 key 已删除, 剩余 " + apiKeyService.delAKey(authorization) + " 个 key", 3);
+
+                        // 重新发送对话
+                        return getChatResponse(apiKeyService.srandKey(), queryStr, maxTokens, temperature, topP);
+                    }
+
+                    log.info(errorJSON.toJSONString() + "\n" + errorJSON.getJSONObject("error").get("code").equals("insufficient_quota"));
                     return Mono.error(new RuntimeException(res));
                 });
 

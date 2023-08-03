@@ -38,6 +38,6 @@ public class ApiKeyController {
     @GetMapping("/delAKey")
     @ResponseBody
     public String delAKey(String key) {
-        return apiKeyService.delAKey(key);
+        return String.valueOf(apiKeyService.delAKey(key));
     }
 }

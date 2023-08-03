@@ -46,12 +46,15 @@ public class ApiKeyService {
         return allKeys.toString();
     }
 
-    public String delAKey(String key) {
+    // 删除指定的 key, 返回剩余 key 个数
+    public long delAKey(String key) {
         long res = 0;
+        long last = 0;
         try (Jedis jedis = GPTService.jedisPool.getResource()) {
             res = jedis.srem(REDIS_YT_KEY, key);
+            last = jedis.scard(REDIS_YT_KEY);
         }
 
-        return "删除 " + res + " 个 Key : " + key;
+        return last;
     }
 }
