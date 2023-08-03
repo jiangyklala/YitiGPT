@@ -86,6 +86,9 @@ public class GPTService implements CompletedCallBack {
     @Resource
     private ApiKeyLoader apiKeyLoader;
 
+    @Resource
+    private ApiKeyService apiKeyService;
+
     @PostConstruct
     public void init() throws IOException {
         enc = Encodings.newDefaultEncodingRegistry().getEncoding(EncodingType.CL100K_BASE);
@@ -160,7 +163,7 @@ public class GPTService implements CompletedCallBack {
         return Flux.create(emitter -> {
             OpenAISubscriber subscriber = new OpenAISubscriber(emitter, this, userMessage, userID, userType, historyID, totalToken, historyList);
             Flux<String> openAiResponse =
-                    openAiWebClient.getChatResponse(OPENAI_TOKEN[(int) (Math.random() * OPENAI_TOKEN.length)], prompt, 1024, null, null);
+                    openAiWebClient.getChatResponse(getOpenAiKeyFromRedis(), prompt, 1024, null, null);
             openAiResponse.subscribe(subscriber);
             emitter.onDispose(subscriber);
         });
@@ -703,6 +706,15 @@ public class GPTService implements CompletedCallBack {
             case 3 -> "超级会员";
             default -> "未知用户";
         };
+    }
+
+
+    private String getOpenAiKeyFromRedis() {
+        String apiKey = apiKeyService.srandKey();
+        if (apiKey == null) {
+            log.error("API-KEY 缺失");
+        }
+        return apiKey;
     }
 
 }
