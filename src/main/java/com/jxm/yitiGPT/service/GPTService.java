@@ -709,7 +709,7 @@ public class GPTService implements CompletedCallBack {
     }
 
 
-    private String getOpenAiKeyFromRedis() {
+    public String getOpenAiKeyFromRedis() {
         String apiKey = apiKeyService.srandKey();
         if (apiKey == null) {
             log.error("API-KEY 缺失");
