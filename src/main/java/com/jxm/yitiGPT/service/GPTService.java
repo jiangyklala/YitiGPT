@@ -711,6 +711,7 @@ public class GPTService implements CompletedCallBack {
 
     public String getOpenAiKeyFromRedis() {
         String apiKey = apiKeyService.srandKey();
+//        String apiKey = "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";
         if (apiKey == null) {
             log.error("API-KEY 缺失");
         }
